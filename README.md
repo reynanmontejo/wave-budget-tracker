@@ -6,8 +6,6 @@ Wave helps you understand where your money goes without requiring an account, an
 
 > Wave is currently an offline MVP under active development. Android device verification and release packaging are the final major steps.
 
-![Wave mobile app interface](design/wave-ui-concept.png)
-
 ## Why Wave?
 
 Personal finance tools often require cloud accounts, subscriptions, or bank access. Wave takes a simpler approach:
@@ -72,6 +70,20 @@ Personal finance tools often require cloud accounts, subscriptions, or bank acce
 Wave uses a soft-blue visual system called **Calm Ledger**: airy surfaces, clear numeric hierarchy, restrained semantic colors, and large touch targets.
 
 ![Wave app icon](design/wave-app-icon-master.png)
+
+### UI/UX previews
+
+#### Final Wave direction
+
+The selected soft-blue experience covers the core journey: checking the dashboard, adding an expense, reviewing transactions, monitoring budgets, and managing accounts.
+
+![Wave soft-blue UI/UX screens showing the dashboard, expense entry, transactions, budgets, and accounts](design/wave-ui-concept.png)
+
+#### Early visual exploration
+
+The original Calm Ledger concept established the layout, information hierarchy, and privacy-first budgeting experience before the palette evolved into Wave blue.
+
+![Early Calm Ledger UI/UX exploration showing five personal-budget screens](design/calm-ledger-ui-concept.png)
 
 The complete design proposal is available in [UI_UX_PROPOSAL.md](UI_UX_PROPOSAL.md). The product and implementation plan is documented in [APP_PLAN.md](APP_PLAN.md).
 
