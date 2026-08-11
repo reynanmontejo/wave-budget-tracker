@@ -57,7 +57,10 @@ class AccountsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
               for (final item in items) ...[
-                _AccountCard(summary: item),
+                _AccountCard(
+                  summary: item,
+                  onEdit: () => _showEditAccount(context, ref, item),
+                ),
                 const SizedBox(height: 10),
               ],
             ],
@@ -157,11 +160,114 @@ class AccountsScreen extends ConsumerWidget {
     balance.dispose();
     if (created ?? false) ref.invalidate(accountBalancesProvider);
   }
+
+  Future<void> _showEditAccount(
+    BuildContext context,
+    WidgetRef ref,
+    AccountBalanceSummary summary,
+  ) async {
+    final name = TextEditingController(text: summary.account.name);
+    final balance = TextEditingController(
+      text: (summary.account.openingBalanceMinor / 100).toStringAsFixed(2),
+    );
+    var type = summary.account.typeName;
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit account'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Account name'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                decoration: const InputDecoration(labelText: 'Type'),
+                items:
+                    const ['Cash', 'Bank', 'E-wallet', 'Savings', 'Investment']
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(value),
+                          ),
+                        )
+                        .toList(),
+                onChanged: (value) => setState(() => type = value ?? type),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: balance,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Opening balance',
+                  prefixText: '₱ ',
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Changing the opening balance updates the account’s current balance while preserving all transactions.',
+                style: TextStyle(color: WaveColors.muted, fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final amount = Money.parseMajorUnits(balance.text);
+                if (amount == null) return;
+                try {
+                  await ref
+                      .read(managementRepositoryProvider)
+                      .updateAccount(
+                        id: summary.account.id,
+                        name: name.text,
+                        typeName: type,
+                        openingBalanceMinor: amount,
+                      );
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } on ArgumentError catch (error) {
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          error.message?.toString() ??
+                              'Check the account details.',
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    name.dispose();
+    balance.dispose();
+    if (updated ?? false) {
+      ref.invalidate(accountBalancesProvider);
+      ref.invalidate(accountsProvider);
+    }
+  }
 }
 
 class _AccountCard extends ConsumerWidget {
-  const _AccountCard({required this.summary});
+  const _AccountCard({required this.summary, required this.onEdit});
   final AccountBalanceSummary summary;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -187,6 +293,10 @@ class _AccountCard extends ConsumerWidget {
             ),
             PopupMenuButton<String>(
               onSelected: (value) async {
+                if (value == 'edit') {
+                  onEdit();
+                  return;
+                }
                 if (value != 'archive') {
                   return;
                 }
@@ -204,6 +314,7 @@ class _AccountCard extends ConsumerWidget {
                 }
               },
               itemBuilder: (_) => const [
+                PopupMenuItem(value: 'edit', child: Text('Edit')),
                 PopupMenuItem(value: 'archive', child: Text('Archive')),
               ],
             ),

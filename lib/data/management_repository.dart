@@ -65,6 +65,45 @@ final class ManagementRepository {
     );
   }
 
+  Future<void> updateAccount({
+    required String id,
+    required String name,
+    required String typeName,
+    required int openingBalanceMinor,
+  }) async {
+    final cleanName = name.trim();
+    final cleanType = typeName.trim();
+    if (cleanName.isEmpty || cleanType.isEmpty) {
+      throw ArgumentError('Account name and type are required.');
+    }
+    if (openingBalanceMinor < 0) {
+      throw ArgumentError('Opening balance cannot be negative.');
+    }
+    final duplicate =
+        await (database.select(database.accounts)..where(
+              (row) =>
+                  row.id.equals(id).not() &
+                  row.archivedAt.isNull() &
+                  row.name.lower().equals(cleanName.toLowerCase()),
+            ))
+            .getSingleOrNull();
+    if (duplicate != null) {
+      throw ArgumentError('An active account already uses this name.');
+    }
+    final changed =
+        await (database.update(
+          database.accounts,
+        )..where((row) => row.id.equals(id))).write(
+          AccountsCompanion(
+            name: Value(cleanName),
+            typeName: Value(cleanType),
+            openingBalanceMinor: Value(openingBalanceMinor),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+    if (changed != 1) throw ArgumentError('Account not found.');
+  }
+
   Future<String> createCategory({
     required String name,
     required String type,
@@ -105,6 +144,36 @@ final class ManagementRepository {
     )..where((row) => row.id.equals(id))).write(
       CategoriesCompanion(
         archivedAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateCategory({
+    required String id,
+    required String name,
+  }) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) throw ArgumentError('Category name is required.');
+    final current = await (database.select(
+      database.categories,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (current == null) throw ArgumentError('Category not found.');
+    final duplicate =
+        await (database.select(database.categories)..where(
+              (row) =>
+                  row.id.equals(id).not() &
+                  row.archivedAt.isNull() &
+                  row.type.equals(current.type) &
+                  row.name.lower().equals(cleanName.toLowerCase()),
+            ))
+            .getSingleOrNull();
+    if (duplicate != null) throw ArgumentError('This category already exists.');
+    await (database.update(
+      database.categories,
+    )..where((row) => row.id.equals(id))).write(
+      CategoriesCompanion(
+        name: Value(cleanName),
         updatedAt: Value(DateTime.now()),
       ),
     );

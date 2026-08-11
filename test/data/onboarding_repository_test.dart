@@ -36,4 +36,9 @@ void main() {
       expect(await onboarding.isComplete(), isTrue);
     },
   );
+
+  test('preferences persist privacy choices', () async {
+    await database.setPreference('balances_visible', 'false');
+    expect(await database.preference('balances_visible'), 'false');
+  });
 }

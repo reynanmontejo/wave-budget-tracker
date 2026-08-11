@@ -84,7 +84,28 @@ final selectedPeriodKindProvider = StateProvider<ExpensePeriodKind>(
 final selectedCustomPeriodProvider = StateProvider<ExpensePeriod?>(
   (ref) => null,
 );
-final balancesVisibleProvider = StateProvider<bool>((ref) => true);
+final balancesVisibleProvider =
+    StateNotifierProvider<BalanceVisibilityController, bool>(
+      (ref) => BalanceVisibilityController(ref.watch(databaseProvider)),
+    );
+
+final class BalanceVisibilityController extends StateNotifier<bool> {
+  BalanceVisibilityController(this.database) : super(true) {
+    _load();
+  }
+
+  static const preferenceKey = 'balances_visible';
+  final AppDatabase database;
+
+  Future<void> _load() async {
+    state = await database.preference(preferenceKey) != 'false';
+  }
+
+  Future<void> toggle() async {
+    state = !state;
+    await database.setPreference(preferenceKey, state.toString());
+  }
+}
 
 final selectedPeriodProvider = Provider<ExpensePeriod>((ref) {
   final now = DateTime.now();

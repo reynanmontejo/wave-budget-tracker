@@ -82,8 +82,7 @@ class _Header extends ConsumerWidget {
         ),
         const Spacer(),
         IconButton(
-          onPressed: () =>
-              ref.read(balancesVisibleProvider.notifier).state = !visible,
+          onPressed: () => ref.read(balancesVisibleProvider.notifier).toggle(),
           tooltip: visible ? 'Hide balances' : 'Show balances',
           icon: Icon(
             visible ? Icons.visibility_outlined : Icons.visibility_off_outlined,

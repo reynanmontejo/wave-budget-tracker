@@ -29,9 +29,17 @@ class CategoriesScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
             children: [
-              _CategoryGroup(title: 'Expenses', items: expense),
+              _CategoryGroup(
+                title: 'Expenses',
+                items: expense,
+                onEdit: (category) => _showEditCategory(context, ref, category),
+              ),
               const SizedBox(height: 24),
-              _CategoryGroup(title: 'Income', items: income),
+              _CategoryGroup(
+                title: 'Income',
+                items: income,
+                onEdit: (category) => _showEditCategory(context, ref, category),
+              ),
             ],
           );
         },
@@ -103,12 +111,74 @@ class CategoriesScreen extends ConsumerWidget {
     );
     name.dispose();
   }
+
+  Future<void> _showEditCategory(
+    BuildContext context,
+    WidgetRef ref,
+    Category category,
+  ) async {
+    final name = TextEditingController(text: category.name);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename category'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Category name'),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'The new name will appear on all existing transactions using this category.',
+              style: TextStyle(color: Color(0xFF69788C), fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              try {
+                await ref
+                    .read(managementRepositoryProvider)
+                    .updateCategory(id: category.id, name: name.text);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              } on ArgumentError catch (error) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        error.message?.toString() ?? 'Check the category name.',
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+  }
 }
 
 class _CategoryGroup extends StatelessWidget {
-  const _CategoryGroup({required this.title, required this.items});
+  const _CategoryGroup({
+    required this.title,
+    required this.items,
+    required this.onEdit,
+  });
   final String title;
   final List<Category> items;
+  final ValueChanged<Category> onEdit;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -125,7 +195,10 @@ class _CategoryGroup extends StatelessWidget {
         child: Column(
           children: [
             for (var index = 0; index < items.length; index++) ...[
-              _CategoryTile(category: items[index]),
+              _CategoryTile(
+                category: items[index],
+                onEdit: () => onEdit(items[index]),
+              ),
               if (index != items.length - 1)
                 const Divider(height: 1, indent: 64),
             ],
@@ -137,8 +210,9 @@ class _CategoryGroup extends StatelessWidget {
 }
 
 class _CategoryTile extends ConsumerWidget {
-  const _CategoryTile({required this.category});
+  const _CategoryTile({required this.category, required this.onEdit});
   final Category category;
+  final VoidCallback onEdit;
   @override
   Widget build(BuildContext context, WidgetRef ref) => ListTile(
     leading: CircleAvatar(
@@ -159,6 +233,10 @@ class _CategoryTile extends ConsumerWidget {
         : const Text('Custom category'),
     trailing: PopupMenuButton<String>(
       onSelected: (value) async {
+        if (value == 'edit') {
+          onEdit();
+          return;
+        }
         if (value == 'archive') {
           await ref
               .read(managementRepositoryProvider)
@@ -166,6 +244,7 @@ class _CategoryTile extends ConsumerWidget {
         }
       },
       itemBuilder: (_) => const [
+        PopupMenuItem(value: 'edit', child: Text('Rename')),
         PopupMenuItem(value: 'archive', child: Text('Archive')),
       ],
     ),
