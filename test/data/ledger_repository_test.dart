@@ -168,4 +168,66 @@ void main() {
       -25000,
     );
   });
+
+  test('editing a transfer recalculates both account balances', () async {
+    final now = DateTime(2026, 8, 10, 12);
+    await repository.createEntry(
+      type: LedgerEntryType.income,
+      amountMinor: 100000,
+      accountId: 'account-cash',
+      categoryId: 'category-salary',
+      occurredAt: now,
+    );
+    final id = await repository.createTransfer(
+      amountMinor: 20000,
+      fromAccountId: 'account-cash',
+      toAccountId: 'account-bank',
+      occurredAt: now,
+    );
+    await repository.updateTransfer(
+      id: id,
+      amountMinor: 35000,
+      fromAccountId: 'account-cash',
+      toAccountId: 'account-bank',
+      occurredAt: now,
+      note: 'Updated',
+    );
+
+    final balances = await database.accountBalances();
+    expect(
+      balances
+          .singleWhere((item) => item.account.id == 'account-cash')
+          .balanceMinor,
+      65000,
+    );
+    expect(
+      balances
+          .singleWhere((item) => item.account.id == 'account-bank')
+          .balanceMinor,
+      35000,
+    );
+  });
+
+  test('deleted activity can be restored with its original ID', () async {
+    final now = DateTime(2026, 8, 10, 12);
+    final id = await repository.createEntry(
+      type: LedgerEntryType.expense,
+      amountMinor: 5000,
+      accountId: 'account-cash',
+      categoryId: 'category-food',
+      occurredAt: now,
+      note: 'Undo me',
+    );
+    final entry =
+        (await database.watchActivityEntries(ExpensePeriod.day(now)).first)
+            .single;
+    await repository.deleteActivity(id, 'expense');
+    expect(await database.select(database.ledgerTransactions).get(), isEmpty);
+    await repository.restoreActivity(entry);
+    final restored = await database
+        .select(database.ledgerTransactions)
+        .getSingle();
+    expect(restored.id, id);
+    expect(restored.note, 'Undo me');
+  });
 }

@@ -145,6 +145,7 @@ final transactionEntriesProvider = StreamProvider<List<TransactionEntry>>((
 final activityTypeFilterProvider = StateProvider<String?>((ref) => null);
 final activityAccountFilterProvider = StateProvider<String?>((ref) => null);
 final activityCategoryFilterProvider = StateProvider<String?>((ref) => null);
+final activitySearchProvider = StateProvider<String>((ref) => '');
 
 final activityEntriesProvider = StreamProvider<List<ActivityEntry>>((
   ref,
@@ -153,6 +154,7 @@ final activityEntriesProvider = StreamProvider<List<ActivityEntry>>((
   final type = ref.watch(activityTypeFilterProvider);
   final account = ref.watch(activityAccountFilterProvider);
   final category = ref.watch(activityCategoryFilterProvider);
+  final search = ref.watch(activitySearchProvider).trim().toLowerCase();
   yield* ref
       .watch(databaseProvider)
       .watchActivityEntries(ref.watch(selectedPeriodProvider))
@@ -165,6 +167,12 @@ final activityEntriesProvider = StreamProvider<List<ActivityEntry>>((
             return false;
           }
           if (category != null && item.categoryId != category) return false;
+          if (search.isNotEmpty) {
+            final haystack =
+                '${item.title} ${item.accountName} ${item.destinationName ?? ''} ${item.note ?? ''} ${item.amountMinor} ${(item.amountMinor / 100).toStringAsFixed(2)}'
+                    .toLowerCase();
+            if (!haystack.contains(search)) return false;
+          }
           return true;
         }).toList(),
       );

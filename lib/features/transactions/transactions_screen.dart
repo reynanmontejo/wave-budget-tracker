@@ -58,6 +58,15 @@ class TransactionsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+            child: SearchBar(
+              hintText: 'Search category, account, note, or amount',
+              leading: const Icon(Icons.search_rounded),
+              onChanged: (value) =>
+                  ref.read(activitySearchProvider.notifier).state = value,
+            ),
+          ),
           const SizedBox(height: 12),
           Expanded(
             child: entries.when(
@@ -276,6 +285,24 @@ class _ActivityTile extends ConsumerWidget {
             .read(ledgerRepositoryProvider)
             .deleteActivity(entry.id, entry.kind);
         _invalidateLedger(ref);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${entry.kind == 'transfer' ? 'Transfer' : entry.title} deleted',
+              ),
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () async {
+                  await ref
+                      .read(ledgerRepositoryProvider)
+                      .restoreActivity(entry);
+                  _invalidateLedger(ref);
+                },
+              ),
+            ),
+          );
+        }
       },
       background: Container(
         alignment: Alignment.centerRight,
@@ -288,9 +315,9 @@ class _ActivityTile extends ConsumerWidget {
       ),
       child: Card(
         child: ListTile(
-          onTap: entry.kind == 'transfer'
-              ? null
-              : () => _editEntry(context, ref),
+          onTap: () => entry.kind == 'transfer'
+              ? _editTransfer(context, ref)
+              : _editEntry(context, ref),
           leading: CircleAvatar(
             backgroundColor: color.withValues(alpha: .12),
             foregroundColor: color,
@@ -328,6 +355,7 @@ class _ActivityTile extends ConsumerWidget {
         ref.read(accountsProvider).valueOrNull ?? const <Account>[];
     var categoryId = entry.categoryId;
     var accountId = entry.accountId;
+    var occurredAt = entry.occurredAt;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -345,6 +373,32 @@ class _ActivityTile extends ConsumerWidget {
                   labelText: 'Amount',
                   prefixText: '₱ ',
                 ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today_outlined),
+                title: const Text('Date'),
+                subtitle: Text(DateFormat.yMMMd().format(occurredAt)),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: dialogContext,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                    initialDate: occurredAt,
+                  );
+                  if (date != null) {
+                    setState(
+                      () => occurredAt = DateTime(
+                        date.year,
+                        date.month,
+                        date.day,
+                        occurredAt.hour,
+                        occurredAt.minute,
+                      ),
+                    );
+                  }
+                },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -403,7 +457,131 @@ class _ActivityTile extends ConsumerWidget {
                       amountMinor: minor,
                       accountId: accountId!,
                       categoryId: categoryId!,
-                      occurredAt: entry.occurredAt,
+                      occurredAt: occurredAt,
+                      note: note.text,
+                    );
+                _invalidateLedger(ref);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    amount.dispose();
+    note.dispose();
+  }
+
+  Future<void> _editTransfer(BuildContext context, WidgetRef ref) async {
+    final amount = TextEditingController(
+      text: (entry.amountMinor / 100).toStringAsFixed(2),
+    );
+    final note = TextEditingController(text: entry.note ?? '');
+    final accounts =
+        ref.read(accountsProvider).valueOrNull ?? const <Account>[];
+    var fromId = entry.accountId;
+    var toId = entry.destinationAccountId;
+    var occurredAt = entry.occurredAt;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit transfer'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: amount,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  prefixText: '₱ ',
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: fromId,
+                decoration: const InputDecoration(labelText: 'From account'),
+                items: [
+                  for (final account in accounts)
+                    DropdownMenuItem(
+                      value: account.id,
+                      child: Text(account.name),
+                    ),
+                ],
+                onChanged: (value) => setState(() => fromId = value),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: toId,
+                decoration: const InputDecoration(labelText: 'To account'),
+                items: [
+                  for (final account in accounts.where(
+                    (item) => item.id != fromId,
+                  ))
+                    DropdownMenuItem(
+                      value: account.id,
+                      child: Text(account.name),
+                    ),
+                ],
+                onChanged: (value) => setState(() => toId = value),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today_outlined),
+                title: const Text('Date'),
+                subtitle: Text(DateFormat.yMMMd().format(occurredAt)),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: dialogContext,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                    initialDate: occurredAt,
+                  );
+                  if (date != null) {
+                    setState(
+                      () => occurredAt = DateTime(
+                        date.year,
+                        date.month,
+                        date.day,
+                        occurredAt.hour,
+                        occurredAt.minute,
+                      ),
+                    );
+                  }
+                },
+              ),
+              TextField(
+                controller: note,
+                decoration: const InputDecoration(labelText: 'Note (optional)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final minor = Money.parseMajorUnits(amount.text);
+                if (minor == null ||
+                    minor == 0 ||
+                    fromId == null ||
+                    toId == null) {
+                  return;
+                }
+                await ref
+                    .read(ledgerRepositoryProvider)
+                    .updateTransfer(
+                      id: entry.id,
+                      amountMinor: minor,
+                      fromAccountId: fromId!,
+                      toAccountId: toId!,
+                      occurredAt: occurredAt,
                       note: note.text,
                     );
                 _invalidateLedger(ref);

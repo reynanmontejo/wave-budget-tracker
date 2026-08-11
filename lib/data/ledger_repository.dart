@@ -131,4 +131,68 @@ final class LedgerRepository {
       await deleteEntry(id);
     }
   }
+
+  Future<void> updateTransfer({
+    required String id,
+    required int amountMinor,
+    required String fromAccountId,
+    required String toAccountId,
+    required DateTime occurredAt,
+    String? note,
+  }) async {
+    if (amountMinor <= 0) throw ArgumentError.value(amountMinor, 'amountMinor');
+    if (fromAccountId == toAccountId) {
+      throw ArgumentError('Source and destination accounts must differ.');
+    }
+    final accountRows = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.isIn([fromAccountId, toAccountId]))).get();
+    if (accountRows.length != 2) throw ArgumentError('Account not found.');
+    if (accountRows.first.currencyCode != accountRows.last.currencyCode) {
+      throw ArgumentError('Cross-currency transfers are not supported.');
+    }
+    await (database.update(
+      database.transfers,
+    )..where((row) => row.id.equals(id))).write(
+      TransfersCompanion(
+        fromAccountId: Value(fromAccountId),
+        toAccountId: Value(toAccountId),
+        amountMinor: Value(amountMinor),
+        occurredAt: Value(occurredAt),
+        note: Value(note?.trim().isEmpty ?? true ? null : note!.trim()),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> restoreActivity(ActivityEntry entry) async {
+    if (entry.kind == 'transfer') {
+      await database
+          .into(database.transfers)
+          .insert(
+            TransfersCompanion.insert(
+              id: entry.id,
+              fromAccountId: entry.accountId!,
+              toAccountId: entry.destinationAccountId!,
+              amountMinor: entry.amountMinor,
+              occurredAt: entry.occurredAt,
+              note: Value(entry.note),
+            ),
+          );
+      return;
+    }
+    await database
+        .into(database.ledgerTransactions)
+        .insert(
+          LedgerTransactionsCompanion.insert(
+            id: entry.id,
+            accountId: entry.accountId!,
+            categoryId: entry.categoryId!,
+            type: entry.kind,
+            amountMinor: entry.amountMinor,
+            occurredAt: entry.occurredAt,
+            note: Value(entry.note),
+          ),
+        );
+  }
 }
