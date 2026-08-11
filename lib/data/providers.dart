@@ -6,6 +6,7 @@ import 'database/seed_data.dart';
 import 'ledger_repository.dart';
 import 'management_repository.dart';
 import 'budget_repository.dart';
+import 'backup_service.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase();
@@ -24,6 +25,14 @@ final managementRepositoryProvider = Provider<ManagementRepository>(
 final budgetRepositoryProvider = Provider<BudgetRepository>(
   (ref) => BudgetRepository(ref.watch(databaseProvider)),
 );
+
+final backupServiceProvider = Provider<BackupService>(
+  (ref) => BackupService(ref.watch(databaseProvider)),
+);
+
+final backupListProvider = FutureProvider<List<BackupInfo>>((ref) async {
+  return ref.watch(backupServiceProvider).listJsonBackups();
+});
 
 final selectedBudgetMonthProvider = StateProvider<DateTime>(
   (ref) => DateTime(DateTime.now().year, DateTime.now().month),

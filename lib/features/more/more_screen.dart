@@ -4,6 +4,7 @@ import '../../core/theme/wave_theme.dart';
 import '../accounts/accounts_screen.dart';
 import '../categories/categories_screen.dart';
 import '../reports/reports_screen.dart';
+import '../settings/backup_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -69,16 +70,22 @@ class MoreScreen extends StatelessWidget {
           const SizedBox(height: 24),
           const _SectionLabel('Data and privacy'),
           const SizedBox(height: 8),
-          const Card(
+          Card(
             child: Column(
               children: [
                 _MoreTile(
                   icon: Icons.backup_outlined,
                   title: 'Backup and restore',
-                  subtitle: 'Not configured yet',
+                  subtitle: 'JSON backups and CSV export',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const BackupScreen(),
+                    ),
+                  ),
                 ),
-                Divider(height: 1, indent: 64),
-                _MoreTile(
+                const Divider(height: 1, indent: 64),
+                const _MoreTile(
                   icon: Icons.visibility_off_outlined,
                   title: 'Privacy',
                   subtitle: 'Balance visibility and app lock',
