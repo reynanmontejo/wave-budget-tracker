@@ -7,11 +7,20 @@ import 'ledger_repository.dart';
 import 'management_repository.dart';
 import 'budget_repository.dart';
 import 'backup_service.dart';
+import 'onboarding_repository.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase();
   ref.onDispose(database.close);
   return database;
+});
+
+final onboardingRepositoryProvider = Provider<OnboardingRepository>(
+  (ref) => OnboardingRepository(ref.watch(databaseProvider)),
+);
+
+final onboardingCompleteProvider = FutureProvider<bool>((ref) {
+  return ref.watch(onboardingRepositoryProvider).isComplete();
 });
 
 final ledgerRepositoryProvider = Provider<LedgerRepository>(

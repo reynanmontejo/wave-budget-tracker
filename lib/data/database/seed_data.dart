@@ -3,35 +3,35 @@ import 'package:drift/drift.dart';
 import 'app_database.dart';
 
 Future<void> seedDatabase(AppDatabase database) async {
-  if (await database.select(database.accounts).getSingleOrNull() != null) {
-    return;
-  }
-
   final now = DateTime.now();
   await database.transaction(() async {
-    await database
-        .into(database.accounts)
-        .insert(
-          AccountsCompanion.insert(
-            id: 'account-cash',
-            name: 'Cash',
-            openingBalanceDate: now,
-            openingBalanceMinor: const Value(0),
-          ),
-        );
-    await database
-        .into(database.accounts)
-        .insert(
-          AccountsCompanion.insert(
-            id: 'account-bank',
-            name: 'Bank',
-            typeName: const Value('Bank'),
-            openingBalanceDate: now,
-            openingBalanceMinor: const Value(0),
-            iconKey: const Value('account_balance'),
-          ),
-        );
-
+    if (await database.select(database.accounts).getSingleOrNull() == null) {
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'account-cash',
+              name: 'Cash',
+              openingBalanceDate: now,
+              openingBalanceMinor: const Value(0),
+            ),
+          );
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'account-bank',
+              name: 'Bank',
+              typeName: const Value('Bank'),
+              openingBalanceDate: now,
+              openingBalanceMinor: const Value(0),
+              iconKey: const Value('account_balance'),
+            ),
+          );
+    }
+    if (await database.select(database.categories).getSingleOrNull() != null) {
+      return;
+    }
     const defaults = <(String, String, String, int)>[
       ('category-food', 'Food', 'restaurant', 0xFFD86464),
       ('category-transport', 'Transport', 'directions_bus', 0xFF5B8DEF),

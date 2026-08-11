@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/wave_theme.dart';
-import 'features/shell/app_shell.dart';
+import 'features/onboarding/app_bootstrap.dart';
 
 class WaveApp extends StatelessWidget {
   const WaveApp({super.key});
@@ -12,7 +12,7 @@ class WaveApp extends StatelessWidget {
       title: 'Wave',
       debugShowCheckedModeBanner: false,
       theme: WaveTheme.light,
-      home: const AppShell(),
+      home: const AppBootstrap(),
     );
   }
 }

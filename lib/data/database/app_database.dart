@@ -91,6 +91,14 @@ class Budgets extends Table {
   ];
 }
 
+class AppPreferences extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {key};
+}
+
 final class PeriodTotals {
   const PeriodTotals({required this.incomeMinor, required this.expenseMinor});
 
@@ -211,14 +219,47 @@ final class ExpenseReport {
 }
 
 @DriftDatabase(
-  tables: [Accounts, Categories, LedgerTransactions, Transfers, Budgets],
+  tables: [
+    Accounts,
+    Categories,
+    LedgerTransactions,
+    Transfers,
+    Budgets,
+    AppPreferences,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
     : super(executor ?? driftDatabase(name: 'wave'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (migrator) => migrator.createAll(),
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        await migrator.createTable(appPreferences);
+      }
+    },
+    beforeOpen: (details) async {
+      await customStatement('PRAGMA foreign_keys = ON');
+    },
+  );
+
+  Future<String?> preference(String key) async {
+    final row = await (select(
+      appPreferences,
+    )..where((item) => item.key.equals(key))).getSingleOrNull();
+    return row?.value;
+  }
+
+  Future<void> setPreference(String key, String value) async {
+    await into(appPreferences).insertOnConflictUpdate(
+      AppPreferencesCompanion.insert(key: key, value: value),
+    );
+  }
 
   Stream<List<Account>> watchActiveAccounts() =>
       (select(accounts)..where((row) => row.archivedAt.isNull())).watch();
