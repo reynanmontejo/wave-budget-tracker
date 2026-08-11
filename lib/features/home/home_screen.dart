@@ -6,6 +6,7 @@ import '../../core/period/expense_period.dart';
 import '../../core/theme/wave_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
+import '../transactions/add_transaction_sheet.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -22,7 +23,11 @@ class HomeScreen extends ConsumerWidget {
           children: [
             const _Header(),
             const SizedBox(height: 20),
-            _BalanceCard(totals: totals, balances: balances),
+            _BalanceCard(
+              totals: totals,
+              balances: balances,
+              visible: ref.watch(balancesVisibleProvider),
+            ),
             const SizedBox(height: 16),
             const _PeriodSelector(),
             const SizedBox(height: 24),
@@ -59,10 +64,11 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   const _Header();
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visible = ref.watch(balancesVisibleProvider);
     return Row(
       children: [
         const Icon(Icons.waves_rounded, color: WaveColors.primary, size: 32),
@@ -76,9 +82,12 @@ class _Header extends StatelessWidget {
         ),
         const Spacer(),
         IconButton(
-          onPressed: () {},
-          tooltip: 'Hide balances',
-          icon: const Icon(Icons.visibility_outlined),
+          onPressed: () =>
+              ref.read(balancesVisibleProvider.notifier).state = !visible,
+          tooltip: visible ? 'Hide balances' : 'Show balances',
+          icon: Icon(
+            visible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+          ),
         ),
       ],
     );
@@ -86,9 +95,14 @@ class _Header extends StatelessWidget {
 }
 
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.totals, required this.balances});
+  const _BalanceCard({
+    required this.totals,
+    required this.balances,
+    required this.visible,
+  });
   final AsyncValue<PeriodTotals> totals;
   final AsyncValue<List<AccountBalanceSummary>> balances;
+  final bool visible;
 
   @override
   Widget build(BuildContext context) {
@@ -137,12 +151,14 @@ class _BalanceCard extends StatelessWidget {
                 ),
               ),
               data: (items) => Text(
-                Money(
-                  items.fold<int>(
-                    0,
-                    (total, item) => total + item.balanceMinor,
-                  ),
-                ).format(),
+                visible
+                    ? Money(
+                        items.fold<int>(
+                          0,
+                          (total, item) => total + item.balanceMinor,
+                        ),
+                      ).format()
+                    : '••••••',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
@@ -155,14 +171,18 @@ class _BalanceCard extends StatelessWidget {
                 Expanded(
                   child: _Metric(
                     label: 'Income',
-                    amount: Money(value.incomeMinor).format(),
+                    amount: visible
+                        ? Money(value.incomeMinor).format()
+                        : '••••',
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: _Metric(
                     label: 'Expenses',
-                    amount: Money(value.expenseMinor).format(),
+                    amount: visible
+                        ? Money(value.expenseMinor).format()
+                        : '••••',
                   ),
                 ),
               ],
@@ -222,50 +242,72 @@ class _PeriodSelector extends ConsumerWidget {
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
   @override
-  Widget build(BuildContext context) => const Row(
+  Widget build(BuildContext context) => Row(
     children: [
       Expanded(
         child: _Action(
           icon: Icons.remove_rounded,
           label: 'Expense',
           color: WaveColors.expense,
+          onTap: () => _openEntry(context, EntryMode.expense),
         ),
       ),
-      SizedBox(width: 10),
+      const SizedBox(width: 10),
       Expanded(
         child: _Action(
           icon: Icons.add_rounded,
           label: 'Income',
           color: WaveColors.income,
+          onTap: () => _openEntry(context, EntryMode.income),
         ),
       ),
-      SizedBox(width: 10),
+      const SizedBox(width: 10),
       Expanded(
         child: _Action(
           icon: Icons.swap_horiz_rounded,
           label: 'Transfer',
           color: WaveColors.primary,
+          onTap: () => _openEntry(context, EntryMode.transfer),
         ),
       ),
     ],
   );
+
+  Future<void> _openEntry(BuildContext context, EntryMode mode) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => AddTransactionSheet(initialMode: mode),
+      );
 }
 
 class _Action extends StatelessWidget {
-  const _Action({required this.icon, required this.label, required this.color});
+  const _Action({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
   final IconData icon;
   final String label;
   final Color color;
+  final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     ),
   );

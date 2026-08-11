@@ -111,6 +111,33 @@ final class TransactionEntry {
   final String accountName;
 }
 
+final class ActivityEntry {
+  const ActivityEntry({
+    required this.id,
+    required this.kind,
+    required this.amountMinor,
+    required this.occurredAt,
+    required this.title,
+    required this.accountName,
+    this.destinationName,
+    this.categoryId,
+    this.accountId,
+    this.destinationAccountId,
+    this.note,
+  });
+  final String id;
+  final String kind;
+  final int amountMinor;
+  final DateTime occurredAt;
+  final String title;
+  final String accountName;
+  final String? destinationName;
+  final String? categoryId;
+  final String? accountId;
+  final String? destinationAccountId;
+  final String? note;
+}
+
 final class AccountBalanceSummary {
   const AccountBalanceSummary({
     required this.account,
@@ -250,6 +277,58 @@ class AppDatabase extends _$AppDatabase {
               transaction: row.readTable(ledgerTransactions),
               categoryName: row.readTable(categories).name,
               accountName: row.readTable(accounts).name,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Stream<List<ActivityEntry>> watchActivityEntries(ExpensePeriod period) {
+    const sql = '''
+SELECT lt.id, lt.type AS kind, lt.amount_minor, lt.occurred_at, lt.note,
+       c.name AS title, a.name AS account_name, NULL AS destination_name,
+       lt.category_id, lt.account_id, NULL AS destination_account_id
+FROM ledger_transactions lt
+JOIN categories c ON c.id = lt.category_id
+JOIN accounts a ON a.id = lt.account_id
+WHERE lt.occurred_at >= ? AND lt.occurred_at < ?
+UNION ALL
+SELECT t.id, 'transfer' AS kind, t.amount_minor, t.occurred_at, t.note,
+       'Transfer' AS title, source.name AS account_name,
+       destination.name AS destination_name, NULL AS category_id,
+       t.from_account_id AS account_id, t.to_account_id AS destination_account_id
+FROM transfers t
+JOIN accounts source ON source.id = t.from_account_id
+JOIN accounts destination ON destination.id = t.to_account_id
+WHERE t.occurred_at >= ? AND t.occurred_at < ?
+ORDER BY occurred_at DESC
+''';
+    return customSelect(
+      sql,
+      variables: [
+        Variable.withDateTime(period.startInclusive),
+        Variable.withDateTime(period.endExclusive),
+        Variable.withDateTime(period.startInclusive),
+        Variable.withDateTime(period.endExclusive),
+      ],
+      readsFrom: {ledgerTransactions, transfers, categories, accounts},
+    ).watch().map(
+      (rows) => rows
+          .map(
+            (row) => ActivityEntry(
+              id: row.read<String>('id'),
+              kind: row.read<String>('kind'),
+              amountMinor: row.read<int>('amount_minor'),
+              occurredAt: row.read<DateTime>('occurred_at'),
+              title: row.read<String>('title'),
+              accountName: row.read<String>('account_name'),
+              destinationName: row.readNullable<String>('destination_name'),
+              categoryId: row.readNullable<String>('category_id'),
+              accountId: row.readNullable<String>('account_id'),
+              destinationAccountId: row.readNullable<String>(
+                'destination_account_id',
+              ),
+              note: row.readNullable<String>('note'),
             ),
           )
           .toList(),

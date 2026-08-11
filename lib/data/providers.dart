@@ -72,6 +72,11 @@ final selectedPeriodKindProvider = StateProvider<ExpensePeriodKind>(
   (ref) => ExpensePeriodKind.month,
 );
 
+final selectedCustomPeriodProvider = StateProvider<ExpensePeriod?>(
+  (ref) => null,
+);
+final balancesVisibleProvider = StateProvider<bool>((ref) => true);
+
 final selectedPeriodProvider = Provider<ExpensePeriod>((ref) {
   final now = DateTime.now();
   return switch (ref.watch(selectedPeriodKindProvider)) {
@@ -79,7 +84,8 @@ final selectedPeriodProvider = Provider<ExpensePeriod>((ref) {
     ExpensePeriodKind.week => ExpensePeriod.week(now),
     ExpensePeriodKind.month => ExpensePeriod.month(now),
     ExpensePeriodKind.year => ExpensePeriod.year(now),
-    ExpensePeriodKind.custom => ExpensePeriod.month(now),
+    ExpensePeriodKind.custom =>
+      ref.watch(selectedCustomPeriodProvider) ?? ExpensePeriod.month(now),
   };
 });
 
@@ -104,6 +110,34 @@ final transactionEntriesProvider = StreamProvider<List<TransactionEntry>>((
   yield* ref
       .watch(databaseProvider)
       .watchTransactionEntries(ref.watch(selectedPeriodProvider));
+});
+
+final activityTypeFilterProvider = StateProvider<String?>((ref) => null);
+final activityAccountFilterProvider = StateProvider<String?>((ref) => null);
+final activityCategoryFilterProvider = StateProvider<String?>((ref) => null);
+
+final activityEntriesProvider = StreamProvider<List<ActivityEntry>>((
+  ref,
+) async* {
+  await ref.watch(seedProvider.future);
+  final type = ref.watch(activityTypeFilterProvider);
+  final account = ref.watch(activityAccountFilterProvider);
+  final category = ref.watch(activityCategoryFilterProvider);
+  yield* ref
+      .watch(databaseProvider)
+      .watchActivityEntries(ref.watch(selectedPeriodProvider))
+      .map(
+        (items) => items.where((item) {
+          if (type != null && item.kind != type) return false;
+          if (account != null &&
+              item.accountId != account &&
+              item.destinationAccountId != account) {
+            return false;
+          }
+          if (category != null && item.categoryId != category) return false;
+          return true;
+        }).toList(),
+      );
 });
 
 final accountsProvider = StreamProvider<List<Account>>((ref) async* {

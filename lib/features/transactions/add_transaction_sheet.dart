@@ -7,10 +7,12 @@ import '../../data/database/app_database.dart';
 import '../../data/ledger_repository.dart';
 import '../../data/providers.dart';
 
-enum _EntryMode { expense, income, transfer }
+enum EntryMode { expense, income, transfer }
 
 class AddTransactionSheet extends ConsumerStatefulWidget {
-  const AddTransactionSheet({super.key});
+  const AddTransactionSheet({super.key, this.initialMode = EntryMode.expense});
+
+  final EntryMode initialMode;
 
   @override
   ConsumerState<AddTransactionSheet> createState() =>
@@ -20,11 +22,17 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
-  _EntryMode _mode = _EntryMode.expense;
+  late EntryMode _mode;
   String? _categoryId;
   String? _accountId;
   String? _toAccountId;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+  }
 
   @override
   void dispose() {
@@ -39,11 +47,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _showError('Enter a valid amount and account.');
       return;
     }
-    if (_mode != _EntryMode.transfer && _categoryId == null) {
+    if (_mode != EntryMode.transfer && _categoryId == null) {
       _showError('Choose a category.');
       return;
     }
-    if (_mode == _EntryMode.transfer && _toAccountId == null) {
+    if (_mode == EntryMode.transfer && _toAccountId == null) {
       _showError('Choose a destination account.');
       return;
     }
@@ -51,7 +59,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     setState(() => _saving = true);
     try {
       final repository = ref.read(ledgerRepositoryProvider);
-      if (_mode == _EntryMode.transfer) {
+      if (_mode == EntryMode.transfer) {
         await repository.createTransfer(
           amountMinor: amount,
           fromAccountId: _accountId!,
@@ -61,7 +69,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         );
       } else {
         await repository.createEntry(
-          type: _mode == _EntryMode.income
+          type: _mode == EntryMode.income
               ? LedgerEntryType.income
               : LedgerEntryType.expense,
           amountMinor: amount,
@@ -88,7 +96,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _changeMode(_EntryMode mode) {
+  void _changeMode(EntryMode mode) {
     setState(() {
       _mode = mode;
       _categoryId = null;
@@ -106,7 +114,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   @override
   Widget build(BuildContext context) {
     final categoryState = ref.watch(
-      _mode == _EntryMode.income
+      _mode == EntryMode.income
           ? incomeCategoriesProvider
           : expenseCategoriesProvider,
     );
@@ -115,7 +123,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         ref.watch(accountsProvider).valueOrNull ?? const <Account>[];
     _categoryId ??= categories.firstOrNull?.id;
     _accountId ??= accounts.firstOrNull?.id;
-    if (_mode == _EntryMode.transfer) {
+    if (_mode == EntryMode.transfer) {
       _toAccountId ??= accounts
           .where((item) => item.id != _accountId)
           .firstOrNull
@@ -153,18 +161,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ],
               ),
               const SizedBox(height: 8),
-              SegmentedButton<_EntryMode>(
+              SegmentedButton<EntryMode>(
                 segments: const [
                   ButtonSegment(
-                    value: _EntryMode.expense,
+                    value: EntryMode.expense,
                     label: Text('Expense'),
                   ),
+                  ButtonSegment(value: EntryMode.income, label: Text('Income')),
                   ButtonSegment(
-                    value: _EntryMode.income,
-                    label: Text('Income'),
-                  ),
-                  ButtonSegment(
-                    value: _EntryMode.transfer,
+                    value: EntryMode.transfer,
                     label: Text('Transfer'),
                   ),
                 ],
@@ -189,7 +194,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ),
               ),
               const SizedBox(height: 20),
-              if (_mode != _EntryMode.transfer) ...[
+              if (_mode != EntryMode.transfer) ...[
                 Text(
                   'Category',
                   style: Theme.of(
@@ -215,7 +220,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               DropdownButtonFormField<String>(
                 initialValue: _accountId,
                 decoration: InputDecoration(
-                  labelText: _mode == _EntryMode.transfer
+                  labelText: _mode == EntryMode.transfer
                       ? 'From account'
                       : 'Account',
                 ),
@@ -231,7 +236,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   if (_toAccountId == value) _toAccountId = null;
                 }),
               ),
-              if (_mode == _EntryMode.transfer) ...[
+              if (_mode == EntryMode.transfer) ...[
                 IconButton(
                   onPressed: _swapAccounts,
                   tooltip: 'Swap accounts',

@@ -108,4 +108,64 @@ void main() {
       throwsArgumentError,
     );
   });
+
+  test('activity feed includes transfers and ledger entries', () async {
+    final now = DateTime(2026, 8, 10, 12);
+    await repository.createEntry(
+      type: LedgerEntryType.income,
+      amountMinor: 100000,
+      accountId: 'account-cash',
+      categoryId: 'category-salary',
+      occurredAt: now,
+    );
+    await repository.createTransfer(
+      amountMinor: 25000,
+      fromAccountId: 'account-cash',
+      toAccountId: 'account-bank',
+      occurredAt: now.add(const Duration(minutes: 1)),
+    );
+
+    final activity = await database
+        .watchActivityEntries(ExpensePeriod.day(now))
+        .first;
+    expect(activity, hasLength(2));
+    expect(activity.first.kind, 'transfer');
+    expect(activity.first.accountName, 'Cash');
+    expect(activity.first.destinationName, 'Bank');
+    expect(activity.last.kind, 'income');
+  });
+
+  test('editing an expense updates amount and account balance', () async {
+    final now = DateTime(2026, 8, 10, 12);
+    final id = await repository.createEntry(
+      type: LedgerEntryType.expense,
+      amountMinor: 10000,
+      accountId: 'account-cash',
+      categoryId: 'category-food',
+      occurredAt: now,
+    );
+    await repository.updateEntry(
+      id: id,
+      type: LedgerEntryType.expense,
+      amountMinor: 25000,
+      accountId: 'account-bank',
+      categoryId: 'category-food',
+      occurredAt: now,
+      note: 'Updated',
+    );
+
+    final balances = await database.accountBalances();
+    expect(
+      balances
+          .singleWhere((item) => item.account.id == 'account-cash')
+          .balanceMinor,
+      0,
+    );
+    expect(
+      balances
+          .singleWhere((item) => item.account.id == 'account-bank')
+          .balanceMinor,
+      -25000,
+    );
+  });
 }

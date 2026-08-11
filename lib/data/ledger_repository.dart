@@ -90,4 +90,45 @@ final class LedgerRepository {
       database.ledgerTransactions,
     )..where((row) => row.id.equals(id))).go();
   }
+
+  Future<void> updateEntry({
+    required String id,
+    required LedgerEntryType type,
+    required int amountMinor,
+    required String accountId,
+    required String categoryId,
+    required DateTime occurredAt,
+    String? note,
+  }) async {
+    if (amountMinor <= 0) throw ArgumentError.value(amountMinor, 'amountMinor');
+    final category = await (database.select(
+      database.categories,
+    )..where((row) => row.id.equals(categoryId))).getSingleOrNull();
+    if (category == null || category.type != type.name) {
+      throw ArgumentError('Choose a matching category.');
+    }
+    await (database.update(
+      database.ledgerTransactions,
+    )..where((row) => row.id.equals(id))).write(
+      LedgerTransactionsCompanion(
+        accountId: Value(accountId),
+        categoryId: Value(categoryId),
+        type: Value(type.name),
+        amountMinor: Value(amountMinor),
+        occurredAt: Value(occurredAt),
+        note: Value(note?.trim().isEmpty ?? true ? null : note!.trim()),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> deleteActivity(String id, String kind) async {
+    if (kind == 'transfer') {
+      await (database.delete(
+        database.transfers,
+      )..where((row) => row.id.equals(id))).go();
+    } else {
+      await deleteEntry(id);
+    }
+  }
 }
