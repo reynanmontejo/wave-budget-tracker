@@ -84,8 +84,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       ref.invalidate(expenseReportProvider);
       ref.invalidate(homeBudgetProgressProvider);
       if (mounted) Navigator.pop(context);
-    } on ArgumentError catch (error) {
-      _showError(error.message?.toString() ?? 'Check the entry and try again.');
+    } catch (error) {
+      _showError(
+        error is ArgumentError
+            ? error.message?.toString() ?? 'Check the entry and try again.'
+            : 'Wave could not save this entry. Please try again.',
+      );
+    } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -118,9 +123,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ? incomeCategoriesProvider
           : expenseCategoriesProvider,
     );
+    final accountState = ref.watch(accountsProvider);
     final categories = categoryState.valueOrNull ?? const <Category>[];
-    final accounts =
-        ref.watch(accountsProvider).valueOrNull ?? const <Account>[];
+    final accounts = accountState.valueOrNull ?? const <Account>[];
     _categoryId ??= categories.firstOrNull?.id;
     _accountId ??= accounts.firstOrNull?.id;
     if (_mode == EntryMode.transfer) {
@@ -194,6 +199,30 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ),
               ),
               const SizedBox(height: 20),
+              if (categoryState.hasError || accountState.hasError) ...[
+                const _EntryNotice(
+                  icon: Icons.error_outline_rounded,
+                  message:
+                      'Wave could not load your accounts or categories. Close this form and try again.',
+                  isError: true,
+                ),
+                const SizedBox(height: 16),
+              ] else if (categoryState.isLoading || accountState.isLoading) ...[
+                const LinearProgressIndicator(),
+                const SizedBox(height: 16),
+              ] else if (accounts.isEmpty) ...[
+                const _EntryNotice(
+                  icon: Icons.account_balance_wallet_outlined,
+                  message: 'Add an account before recording an entry.',
+                ),
+                const SizedBox(height: 16),
+              ] else if (_mode != EntryMode.transfer && categories.isEmpty) ...[
+                const _EntryNotice(
+                  icon: Icons.category_outlined,
+                  message: 'Add a matching category before recording an entry.',
+                ),
+                const SizedBox(height: 16),
+              ],
               if (_mode != EntryMode.transfer) ...[
                 Text(
                   'Category',
@@ -275,7 +304,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
               const SizedBox(height: 20),
               FilledButton(
-                onPressed: _saving ? null : _save,
+                onPressed:
+                    _saving ||
+                        categoryState.isLoading ||
+                        accountState.isLoading ||
+                        categoryState.hasError ||
+                        accountState.hasError ||
+                        accounts.isEmpty ||
+                        (_mode != EntryMode.transfer && categories.isEmpty) ||
+                        (_mode == EntryMode.transfer && accounts.length < 2)
+                    ? null
+                    : _save,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                 ),
@@ -295,4 +334,39 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       ),
     );
   }
+}
+
+class _EntryNotice extends StatelessWidget {
+  const _EntryNotice({
+    required this.icon,
+    required this.message,
+    this.isError = false,
+  });
+
+  final IconData icon;
+  final String message;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: isError
+          ? Theme.of(context).colorScheme.errorContainer
+          : WaveColors.primaryContainer,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          icon,
+          color: isError
+              ? Theme.of(context).colorScheme.onErrorContainer
+              : WaveColors.primaryStrong,
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(message)),
+      ],
+    ),
+  );
 }

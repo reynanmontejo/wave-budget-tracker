@@ -125,7 +125,13 @@ class AccountsScreen extends ConsumerWidget {
                 final amount = Money.parseMajorUnits(
                   balance.text.trim().isEmpty ? '0' : balance.text,
                 );
-                if (amount == null) return;
+                if (amount == null) {
+                  _showDialogError(
+                    dialogContext,
+                    'Enter a valid opening balance.',
+                  );
+                  return;
+                }
                 try {
                   await ref
                       .read(managementRepositoryProvider)
@@ -137,15 +143,14 @@ class AccountsScreen extends ConsumerWidget {
                   if (dialogContext.mounted) {
                     Navigator.pop(dialogContext, true);
                   }
-                } on ArgumentError catch (error) {
+                } catch (error) {
                   if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          error.message?.toString() ??
-                              'Check the account details.',
-                        ),
-                      ),
+                    _showDialogError(
+                      dialogContext,
+                      error is ArgumentError
+                          ? error.message?.toString() ??
+                                'Check the account details.'
+                          : 'Wave could not add this account. Please try again.',
                     );
                   }
                 }
@@ -225,7 +230,13 @@ class AccountsScreen extends ConsumerWidget {
             FilledButton(
               onPressed: () async {
                 final amount = Money.parseMajorUnits(balance.text);
-                if (amount == null) return;
+                if (amount == null) {
+                  _showDialogError(
+                    dialogContext,
+                    'Enter a valid opening balance.',
+                  );
+                  return;
+                }
                 try {
                   await ref
                       .read(managementRepositoryProvider)
@@ -236,15 +247,14 @@ class AccountsScreen extends ConsumerWidget {
                         openingBalanceMinor: amount,
                       );
                   if (dialogContext.mounted) Navigator.pop(dialogContext, true);
-                } on ArgumentError catch (error) {
+                } catch (error) {
                   if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          error.message?.toString() ??
-                              'Check the account details.',
-                        ),
-                      ),
+                    _showDialogError(
+                      dialogContext,
+                      error is ArgumentError
+                          ? error.message?.toString() ??
+                                'Check the account details.'
+                          : 'Wave could not update this account. Please try again.',
                     );
                   }
                 }
@@ -261,6 +271,13 @@ class AccountsScreen extends ConsumerWidget {
       ref.invalidate(accountBalancesProvider);
       ref.invalidate(accountsProvider);
     }
+  }
+
+  void _showDialogError(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

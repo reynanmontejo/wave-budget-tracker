@@ -5,7 +5,10 @@ import 'app_database.dart';
 Future<void> seedDatabase(AppDatabase database) async {
   final now = DateTime.now();
   await database.transaction(() async {
-    if (await database.select(database.accounts).getSingleOrNull() == null) {
+    final hasAccounts =
+        await (database.select(database.accounts)..limit(1)).getSingleOrNull() !=
+        null;
+    if (!hasAccounts) {
       await database
           .into(database.accounts)
           .insert(
@@ -29,7 +32,11 @@ Future<void> seedDatabase(AppDatabase database) async {
             ),
           );
     }
-    if (await database.select(database.categories).getSingleOrNull() != null) {
+    final hasCategories =
+        await (database.select(database.categories)..limit(1))
+            .getSingleOrNull() !=
+        null;
+    if (hasCategories) {
       return;
     }
     const defaults = <(String, String, String, int)>[
