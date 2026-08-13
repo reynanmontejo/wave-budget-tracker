@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/database/app_database.dart';
 
@@ -57,6 +58,8 @@ final class PrivacyController extends StateNotifier<PrivacyState> {
   final LocalAuthentication authentication;
   DateTime? _backgroundedAt;
   static const _pinKey = 'wave_pin_digest';
+  static const _recoveryKey = 'wave_recovery_digest';
+  static const _privacyChannel = MethodChannel('wave/privacy');
 
   Future<void> load() async {
     final enabled = await database.preference('privacy_lock_enabled') == 'true';
@@ -73,17 +76,34 @@ final class PrivacyController extends StateNotifier<PrivacyState> {
       timeoutMinutes: timeout ?? 1,
       locked: enabled,
     );
+    await _setNativeScreenProtection(state.hideWhenBackgrounded);
   }
 
-  Future<void> setPin(String pin) async {
+  Future<String> setPin(String pin) async {
     if (!RegExp(r'^\d{4,8}$').hasMatch(pin)) {
       throw const FormatException('PIN must contain 4 to 8 digits.');
     }
     final salt = List<int>.generate(16, (_) => Random.secure().nextInt(256));
     final digest = sha256.convert([...salt, ...utf8.encode(pin)]).toString();
     await storage.write(key: _pinKey, value: '${base64Encode(salt)}:$digest');
+    final recoveryCode = _createRecoveryCode();
+    await storage.write(
+      key: _recoveryKey,
+      value: sha256.convert(utf8.encode(recoveryCode)).toString(),
+    );
     await database.setPreference('privacy_lock_enabled', 'true');
     state = state.copyWith(lockEnabled: true, locked: false);
+    return recoveryCode;
+  }
+
+  Future<bool> unlockWithRecoveryCode(String code) async {
+    final stored = await storage.read(key: _recoveryKey);
+    if (stored == null) return false;
+    final normalized = code.replaceAll('-', '').trim().toUpperCase();
+    final digest = sha256.convert(utf8.encode(normalized)).toString();
+    if (digest != stored) return false;
+    state = state.copyWith(locked: false);
+    return true;
   }
 
   Future<bool> unlockWithPin(String pin) async {
@@ -115,6 +135,7 @@ final class PrivacyController extends StateNotifier<PrivacyState> {
 
   Future<void> disableLock() async {
     await storage.delete(key: _pinKey);
+    await storage.delete(key: _recoveryKey);
     await database.setPreference('privacy_lock_enabled', 'false');
     await setBiometrics(false);
     state = state.copyWith(lockEnabled: false, locked: false);
@@ -142,6 +163,27 @@ final class PrivacyController extends StateNotifier<PrivacyState> {
   Future<void> setHideWhenBackgrounded(bool enabled) async {
     await database.setPreference('privacy_hide_background', enabled.toString());
     state = state.copyWith(hideWhenBackgrounded: enabled);
+    await _setNativeScreenProtection(enabled);
+  }
+
+  String _createRecoveryCode() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final random = Random.secure();
+    final raw = List.generate(
+      16,
+      (_) => alphabet[random.nextInt(alphabet.length)],
+    ).join();
+    return raw;
+  }
+
+  Future<void> _setNativeScreenProtection(bool enabled) async {
+    try {
+      await _privacyChannel.invokeMethod<void>('setScreenProtection', enabled);
+    } on MissingPluginException {
+      // Unit tests and non-Android platforms may not expose this channel.
+    } on PlatformException {
+      // The Flutter privacy overlay remains active as a safe fallback.
+    }
   }
 
   Future<void> setTimeout(int minutes) async {

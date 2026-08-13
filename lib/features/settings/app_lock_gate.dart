@@ -74,6 +74,46 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     });
   }
 
+  Future<void> _recover() async {
+    final recovery = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Use recovery code'),
+        content: TextField(
+          controller: recovery,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(labelText: 'Recovery code'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, recovery.text),
+            child: const Text('Unlock'),
+          ),
+        ],
+      ),
+    );
+    recovery.dispose();
+    if (code == null || !mounted) return;
+    final success = await ref
+        .read(privacyProvider.notifier)
+        .unlockWithRecoveryCode(code);
+    if (!mounted) return;
+    setState(() => _error = success ? null : 'Invalid recovery code');
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unlocked. Change your PIN in Privacy settings.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final privacy = ref.watch(privacyProvider);
@@ -125,6 +165,12 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
                               FilledButton(
                                 onPressed: _unlock,
                                 child: const Text('Unlock'),
+                              ),
+                              TextButton(
+                                onPressed: _recover,
+                                child: const Text(
+                                  'Forgot PIN? Use recovery code',
+                                ),
                               ),
                               if (privacy.biometricEnabled) ...[
                                 const SizedBox(height: 8),

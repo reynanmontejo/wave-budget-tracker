@@ -9,7 +9,7 @@ Wave is an offline-first personal budget tracker for Android. Version 1.1.0 expa
 - Upcoming and recurring income or expenses with reminders
 - Cash-flow forecast and estimated safe-to-spend guidance
 - Editable and deletable activity with confirmation before new records are saved
-- PIN lock, optional biometric unlock, background privacy cover, and lock timeout
+- PIN lock, one-time recovery code, optional biometric unlock, native screen protection, and lock timeout
 - Versioned JSON backup with integrity checks, file import, sharing, and CSV export
 - Soft-blue Wave themes and reduced-motion support
 

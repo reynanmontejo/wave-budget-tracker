@@ -57,7 +57,43 @@ class PrivacyScreen extends ConsumerWidget {
               final pin = await _askPin(context);
               if (pin == null || !context.mounted) return;
               try {
-                await controller.setPin(pin);
+                final recoveryCode = await controller.setPin(pin);
+                if (context.mounted) {
+                  await showDialog<void>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Save your recovery code'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Keep this outside your phone. It can unlock Wave if you forget your PIN, and it will not be shown again.',
+                          ),
+                          const SizedBox(height: 16),
+                          SelectableText(
+                            recoveryCode
+                                .replaceAllMapped(
+                                  RegExp(r'.{4}'),
+                                  (match) => '${match.group(0)}-',
+                                )
+                                .replaceFirst(RegExp(r'-$'), ''),
+                            style: Theme.of(
+                              dialogContext,
+                            ).textTheme.titleLarge?.copyWith(letterSpacing: 2),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        FilledButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('I saved it'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
               } on FormatException catch (error) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(
@@ -88,9 +124,9 @@ class PrivacyScreen extends ConsumerWidget {
                 : null,
           ),
           SwitchListTile(
-            title: const Text('Hide while backgrounded'),
+            title: const Text('Screen privacy protection'),
             subtitle: const Text(
-              'Cover financial information in the app switcher.',
+              'Block screenshots and cover financial information in the app switcher.',
             ),
             value: privacy.hideWhenBackgrounded,
             onChanged: controller.setHideWhenBackgrounded,
