@@ -48,16 +48,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             openingBalanceMinor: amount,
           );
       ref.invalidate(onboardingCompleteProvider);
-    } on ArgumentError catch (error) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              error.message?.toString() ?? 'Check the account details.',
+              error is ArgumentError
+                  ? error.message?.toString() ?? 'Check the account details.'
+                  : 'Wave could not finish setup. Please try again.',
             ),
           ),
         );
       }
+    } finally {
       if (mounted) setState(() => _saving = false);
     }
   }

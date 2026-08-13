@@ -19,7 +19,9 @@ final class BudgetRepository {
     final category = await (database.select(
       database.categories,
     )..where((row) => row.id.equals(categoryId))).getSingleOrNull();
-    if (category == null || category.type != 'expense') {
+    if (category == null ||
+        category.archivedAt != null ||
+        category.type != 'expense') {
       throw ArgumentError('Choose an expense category.');
     }
     final start = DateTime(month.year, month.month);

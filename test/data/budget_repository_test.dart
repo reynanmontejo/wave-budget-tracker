@@ -4,6 +4,7 @@ import 'package:wave/data/budget_repository.dart';
 import 'package:wave/data/database/app_database.dart';
 import 'package:wave/data/database/seed_data.dart';
 import 'package:wave/data/ledger_repository.dart';
+import 'package:wave/data/management_repository.dart';
 
 void main() {
   late AppDatabase database;
@@ -78,6 +79,19 @@ void main() {
         categoryId: 'category-food',
         month: DateTime(2026, 8),
         limitMinor: 0,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('rejects an archived expense category', () async {
+    await ManagementRepository(database).archiveCategory('category-food');
+
+    expect(
+      () => budgets.setMonthlyBudget(
+        categoryId: 'category-food',
+        month: DateTime(2026, 8),
+        limitMinor: 1000,
       ),
       throwsArgumentError,
     );

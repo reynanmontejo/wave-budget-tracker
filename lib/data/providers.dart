@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/period/expense_period.dart';
+import '../core/dashboard/dashboard_metrics.dart';
+import '../core/theme/appearance_preferences.dart';
 import 'database/app_database.dart';
 import 'database/seed_data.dart';
 import 'ledger_repository.dart';
@@ -89,6 +91,43 @@ final balancesVisibleProvider =
       (ref) => BalanceVisibilityController(ref.watch(databaseProvider)),
     );
 
+final appearanceProvider =
+    StateNotifierProvider<AppearanceController, AppearancePreferences>(
+      (ref) => AppearanceController(ref.watch(databaseProvider)),
+    );
+
+final class AppearanceController extends StateNotifier<AppearancePreferences> {
+  AppearanceController(this.database) : super(const AppearancePreferences()) {
+    _load();
+  }
+
+  static const themeKey = 'appearance_theme';
+  static const motionKey = 'gentle_motion';
+  final AppDatabase database;
+
+  Future<void> _load() async {
+    final storedTheme = await database.preference(themeKey);
+    final theme = WaveThemeChoice.values
+        .where((item) => item.name == storedTheme)
+        .firstOrNull;
+    final motion = await database.preference(motionKey);
+    state = AppearancePreferences(
+      theme: theme ?? WaveThemeChoice.oceanLight,
+      gentleMotion: motion != 'false',
+    );
+  }
+
+  Future<void> setTheme(WaveThemeChoice theme) async {
+    state = state.copyWith(theme: theme);
+    await database.setPreference(themeKey, theme.name);
+  }
+
+  Future<void> setGentleMotion(bool enabled) async {
+    state = state.copyWith(gentleMotion: enabled);
+    await database.setPreference(motionKey, enabled.toString());
+  }
+}
+
 final class BalanceVisibilityController extends StateNotifier<bool> {
   BalanceVisibilityController(this.database) : super(true) {
     _load();
@@ -124,6 +163,19 @@ final totalsProvider = FutureProvider<PeriodTotals>((ref) async {
   return ref
       .watch(databaseProvider)
       .totalsFor(ref.watch(selectedPeriodProvider));
+});
+
+final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
+  await ref.watch(seedProvider.future);
+  final database = ref.watch(databaseProvider);
+  final period = ref.watch(selectedPeriodProvider);
+  final current = await database.totalsFor(period);
+  final previous = await database.totalsFor(period.previous);
+  return DashboardMetrics.calculate(
+    current: current,
+    previous: previous,
+    period: period,
+  );
 });
 
 final accountBalancesProvider = FutureProvider<List<AccountBalanceSummary>>((

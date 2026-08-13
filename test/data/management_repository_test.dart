@@ -31,20 +31,23 @@ void main() {
     expect(account.openingBalanceMinor, 123450);
   });
 
-  test('seeding is safe to repeat with multiple accounts and categories', () async {
-    await management.createAccount(
-      name: 'GCash',
-      typeName: 'E-wallet',
-      openingBalanceMinor: 123450,
-    );
+  test(
+    'seeding is safe to repeat with multiple accounts and categories',
+    () async {
+      await management.createAccount(
+        name: 'GCash',
+        typeName: 'E-wallet',
+        openingBalanceMinor: 123450,
+      );
 
-    await seedDatabase(database);
+      await seedDatabase(database);
 
-    final accounts = await database.select(database.accounts).get();
-    final categories = await database.select(database.categories).get();
-    expect(accounts, hasLength(3));
-    expect(categories, hasLength(6));
-  });
+      final accounts = await database.select(database.accounts).get();
+      final categories = await database.select(database.categories).get();
+      expect(accounts, hasLength(3));
+      expect(categories, hasLength(6));
+    },
+  );
 
   test('rejects duplicate active account names ignoring case', () async {
     expect(

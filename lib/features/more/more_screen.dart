@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/wave_theme.dart';
+import '../../core/theme/wave_page_route.dart';
+import '../../data/providers.dart';
 import '../accounts/accounts_screen.dart';
 import '../categories/categories_screen.dart';
 import '../reports/reports_screen.dart';
 import '../settings/backup_screen.dart';
+import '../settings/appearance_screen.dart';
 
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final motionEnabled =
+        ref.watch(appearanceProvider).gentleMotion &&
+        !MediaQuery.disableAnimationsOf(context);
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -33,7 +40,8 @@ class MoreScreen extends StatelessWidget {
                   subtitle: 'Balances and where you keep money',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute<void>(
+                    WavePageRoute<void>(
+                      motionEnabled: motionEnabled,
                       builder: (_) => const AccountsScreen(),
                     ),
                   ),
@@ -45,7 +53,8 @@ class MoreScreen extends StatelessWidget {
                   subtitle: 'Organize income and expenses',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute<void>(
+                    WavePageRoute<void>(
+                      motionEnabled: motionEnabled,
                       builder: (_) => const CategoriesScreen(),
                     ),
                   ),
@@ -63,7 +72,27 @@ class MoreScreen extends StatelessWidget {
               subtitle: 'Spending trends and category breakdowns',
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(builder: (_) => const ReportsScreen()),
+                WavePageRoute<void>(
+                  motionEnabled: motionEnabled,
+                  builder: (_) => const ReportsScreen(),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const _SectionLabel('Personalize'),
+          const SizedBox(height: 8),
+          Card(
+            child: _MoreTile(
+              icon: Icons.palette_outlined,
+              title: 'Appearance',
+              subtitle: 'Theme and gentle motion',
+              onTap: () => Navigator.push(
+                context,
+                WavePageRoute<void>(
+                  motionEnabled: motionEnabled,
+                  builder: (_) => const AppearanceScreen(),
+                ),
               ),
             ),
           ),
@@ -79,7 +108,8 @@ class MoreScreen extends StatelessWidget {
                   subtitle: 'JSON backups and CSV export',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute<void>(
+                    WavePageRoute<void>(
+                      motionEnabled: motionEnabled,
                       builder: (_) => const BackupScreen(),
                     ),
                   ),

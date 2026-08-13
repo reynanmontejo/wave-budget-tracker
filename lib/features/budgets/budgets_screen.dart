@@ -102,8 +102,16 @@ class BudgetsScreen extends ConsumerWidget {
   }) async {
     final categories =
         ref.read(expenseCategoriesProvider).valueOrNull ?? const <Category>[];
-    if (categories.isEmpty) return;
+    if (categories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add an expense category before creating a budget.'),
+        ),
+      );
+      return;
+    }
     var categoryId = existing?.budget.categoryId ?? categories.first.id;
+    var saving = false;
     final limit = TextEditingController(
       text: existing == null
           ? ''
@@ -158,27 +166,68 @@ class BudgetsScreen extends ConsumerWidget {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () async {
-                final amount = Money.parseMajorUnits(limit.text);
-                if (amount == null || amount == 0) return;
-                await ref
-                    .read(budgetRepositoryProvider)
-                    .setMonthlyBudget(
-                      categoryId: categoryId,
-                      month: ref.read(selectedBudgetMonthProvider),
-                      limitMinor: amount,
-                    );
-                ref.invalidate(budgetProgressProvider);
-                ref.invalidate(homeBudgetProgressProvider);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: Text(existing == null ? 'Create' : 'Update'),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final amount = Money.parseMajorUnits(limit.text);
+                      if (amount == null || amount == 0) {
+                        _showDialogMessage(
+                          dialogContext,
+                          'Enter a budget greater than zero.',
+                        );
+                        return;
+                      }
+                      setState(() => saving = true);
+                      try {
+                        await ref
+                            .read(budgetRepositoryProvider)
+                            .setMonthlyBudget(
+                              categoryId: categoryId,
+                              month: ref.read(selectedBudgetMonthProvider),
+                              limitMinor: amount,
+                            );
+                        ref.invalidate(budgetProgressProvider);
+                        ref.invalidate(homeBudgetProgressProvider);
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          _showDialogMessage(
+                            dialogContext,
+                            error is ArgumentError
+                                ? error.message?.toString() ??
+                                      'Check the budget details.'
+                                : 'Wave could not save this budget. Please try again.',
+                          );
+                        }
+                      } finally {
+                        if (dialogContext.mounted) {
+                          setState(() => saving = false);
+                        }
+                      }
+                    },
+              child: saving
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(existing == null ? 'Create' : 'Update'),
             ),
           ],
         ),
       ),
     );
+    await Future<void>.delayed(kThemeAnimationDuration);
     limit.dispose();
+  }
+
+  void _showDialogMessage(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

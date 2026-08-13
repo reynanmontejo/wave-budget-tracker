@@ -26,8 +26,12 @@ final class LedgerRepository {
     final category = await (database.select(
       database.categories,
     )..where((row) => row.id.equals(categoryId))).getSingleOrNull();
-    if (account == null) throw ArgumentError.value(accountId, 'accountId');
-    if (category == null || category.type != type.name) {
+    if (account == null || account.archivedAt != null) {
+      throw ArgumentError('Choose an active account.');
+    }
+    if (category == null ||
+        category.archivedAt != null ||
+        category.type != type.name) {
       throw ArgumentError.value(categoryId, 'categoryId');
     }
 
@@ -65,6 +69,9 @@ final class LedgerRepository {
         database.accounts,
       )..where((row) => row.id.isIn([fromAccountId, toAccountId]))).get();
       if (accountRows.length != 2) throw ArgumentError('Account not found.');
+      if (accountRows.any((account) => account.archivedAt != null)) {
+        throw ArgumentError('Choose active accounts.');
+      }
       if (accountRows.first.currencyCode != accountRows.last.currencyCode) {
         throw ArgumentError('Cross-currency transfers are not supported.');
       }
@@ -86,9 +93,10 @@ final class LedgerRepository {
   }
 
   Future<void> deleteEntry(String id) async {
-    await (database.delete(
+    final changed = await (database.delete(
       database.ledgerTransactions,
     )..where((row) => row.id.equals(id))).go();
+    if (changed != 1) throw ArgumentError('Transaction not found.');
   }
 
   Future<void> updateEntry({
@@ -101,32 +109,43 @@ final class LedgerRepository {
     String? note,
   }) async {
     if (amountMinor <= 0) throw ArgumentError.value(amountMinor, 'amountMinor');
+    final account = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals(accountId))).getSingleOrNull();
     final category = await (database.select(
       database.categories,
     )..where((row) => row.id.equals(categoryId))).getSingleOrNull();
-    if (category == null || category.type != type.name) {
+    if (account == null || account.archivedAt != null) {
+      throw ArgumentError('Choose an active account.');
+    }
+    if (category == null ||
+        category.archivedAt != null ||
+        category.type != type.name) {
       throw ArgumentError('Choose a matching category.');
     }
-    await (database.update(
-      database.ledgerTransactions,
-    )..where((row) => row.id.equals(id))).write(
-      LedgerTransactionsCompanion(
-        accountId: Value(accountId),
-        categoryId: Value(categoryId),
-        type: Value(type.name),
-        amountMinor: Value(amountMinor),
-        occurredAt: Value(occurredAt),
-        note: Value(note?.trim().isEmpty ?? true ? null : note!.trim()),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    final changed =
+        await (database.update(
+          database.ledgerTransactions,
+        )..where((row) => row.id.equals(id))).write(
+          LedgerTransactionsCompanion(
+            accountId: Value(accountId),
+            categoryId: Value(categoryId),
+            type: Value(type.name),
+            amountMinor: Value(amountMinor),
+            occurredAt: Value(occurredAt),
+            note: Value(note?.trim().isEmpty ?? true ? null : note!.trim()),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+    if (changed != 1) throw ArgumentError('Transaction not found.');
   }
 
   Future<void> deleteActivity(String id, String kind) async {
     if (kind == 'transfer') {
-      await (database.delete(
+      final changed = await (database.delete(
         database.transfers,
       )..where((row) => row.id.equals(id))).go();
+      if (changed != 1) throw ArgumentError('Transfer not found.');
     } else {
       await deleteEntry(id);
     }
@@ -148,21 +167,26 @@ final class LedgerRepository {
       database.accounts,
     )..where((row) => row.id.isIn([fromAccountId, toAccountId]))).get();
     if (accountRows.length != 2) throw ArgumentError('Account not found.');
+    if (accountRows.any((account) => account.archivedAt != null)) {
+      throw ArgumentError('Choose active accounts.');
+    }
     if (accountRows.first.currencyCode != accountRows.last.currencyCode) {
       throw ArgumentError('Cross-currency transfers are not supported.');
     }
-    await (database.update(
-      database.transfers,
-    )..where((row) => row.id.equals(id))).write(
-      TransfersCompanion(
-        fromAccountId: Value(fromAccountId),
-        toAccountId: Value(toAccountId),
-        amountMinor: Value(amountMinor),
-        occurredAt: Value(occurredAt),
-        note: Value(note?.trim().isEmpty ?? true ? null : note!.trim()),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    final changed =
+        await (database.update(
+          database.transfers,
+        )..where((row) => row.id.equals(id))).write(
+          TransfersCompanion(
+            fromAccountId: Value(fromAccountId),
+            toAccountId: Value(toAccountId),
+            amountMinor: Value(amountMinor),
+            occurredAt: Value(occurredAt),
+            note: Value(note?.trim().isEmpty ?? true ? null : note!.trim()),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+    if (changed != 1) throw ArgumentError('Transfer not found.');
   }
 
   Future<void> restoreActivity(ActivityEntry entry) async {

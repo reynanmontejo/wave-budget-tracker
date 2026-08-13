@@ -4,6 +4,7 @@ import 'package:wave/core/period/expense_period.dart';
 import 'package:wave/data/database/app_database.dart';
 import 'package:wave/data/database/seed_data.dart';
 import 'package:wave/data/ledger_repository.dart';
+import 'package:wave/data/management_repository.dart';
 
 void main() {
   late AppDatabase database;
@@ -105,6 +106,76 @@ void main() {
         categoryId: 'category-food',
         occurredAt: DateTime(2026, 8, 10),
       ),
+      throwsArgumentError,
+    );
+  });
+
+  test('entry rejects archived accounts and categories', () async {
+    final management = ManagementRepository(database);
+    await management.archiveAccount('account-cash');
+    await management.archiveCategory('category-food');
+
+    expect(
+      () => repository.createEntry(
+        type: LedgerEntryType.income,
+        amountMinor: 100,
+        accountId: 'account-cash',
+        categoryId: 'category-salary',
+        occurredAt: DateTime(2026, 8, 10),
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => repository.createEntry(
+        type: LedgerEntryType.expense,
+        amountMinor: 100,
+        accountId: 'account-bank',
+        categoryId: 'category-food',
+        occurredAt: DateTime(2026, 8, 10),
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('transfer rejects an archived account', () async {
+    await ManagementRepository(database).archiveAccount('account-cash');
+
+    expect(
+      () => repository.createTransfer(
+        amountMinor: 100,
+        fromAccountId: 'account-cash',
+        toAccountId: 'account-bank',
+        occurredAt: DateTime(2026, 8, 10),
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('updates and deletes reject missing activity IDs', () async {
+    expect(
+      () => repository.updateEntry(
+        id: 'missing',
+        type: LedgerEntryType.expense,
+        amountMinor: 100,
+        accountId: 'account-cash',
+        categoryId: 'category-food',
+        occurredAt: DateTime(2026, 8, 10),
+      ),
+      throwsArgumentError,
+    );
+    expect(() => repository.deleteEntry('missing'), throwsArgumentError);
+    expect(
+      () => repository.updateTransfer(
+        id: 'missing',
+        amountMinor: 100,
+        fromAccountId: 'account-cash',
+        toAccountId: 'account-bank',
+        occurredAt: DateTime(2026, 8, 10),
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => repository.deleteActivity('missing', 'transfer'),
       throwsArgumentError,
     );
   });

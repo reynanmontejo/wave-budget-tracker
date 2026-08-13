@@ -161,6 +161,7 @@ class AccountsScreen extends ConsumerWidget {
         ),
       ),
     );
+    await Future<void>.delayed(kThemeAnimationDuration);
     name.dispose();
     balance.dispose();
     if (created ?? false) ref.invalidate(accountBalancesProvider);
@@ -265,6 +266,7 @@ class AccountsScreen extends ConsumerWidget {
         ),
       ),
     );
+    await Future<void>.delayed(kThemeAnimationDuration);
     name.dispose();
     balance.dispose();
     if (updated ?? false) {

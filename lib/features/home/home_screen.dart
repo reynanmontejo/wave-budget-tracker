@@ -1,6 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/dashboard/dashboard_metrics.dart';
 import '../../core/money/money.dart';
 import '../../core/period/expense_period.dart';
 import '../../core/theme/wave_theme.dart';
@@ -8,28 +12,88 @@ import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
 import '../transactions/add_transaction_sheet.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final totals = ref.watch(totalsProvider);
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with TickerProviderStateMixin {
+  late final AnimationController _waveController;
+  late final AnimationController _revealController;
+
+  @override
+  void initState() {
+    super.initState();
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    );
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _waveController.dispose();
+    _revealController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final balances = ref.watch(accountBalancesProvider);
+    final metrics = ref.watch(dashboardMetricsProvider);
+    final motionEnabled =
+        ref.watch(appearanceProvider).gentleMotion &&
+        !MediaQuery.disableAnimationsOf(context);
+    if (motionEnabled && !_waveController.isAnimating) {
+      _waveController.repeat();
+    } else if (!motionEnabled && _waveController.isAnimating) {
+      _waveController.stop();
+    }
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(totalsProvider),
+        onRefresh: () async {
+          ref.invalidate(totalsProvider);
+          ref.invalidate(accountBalancesProvider);
+          ref.invalidate(homeBudgetProgressProvider);
+          ref.invalidate(transactionEntriesProvider);
+          ref.invalidate(expenseReportProvider);
+          ref.invalidate(dashboardMetricsProvider);
+          await Future.wait([
+            ref.read(totalsProvider.future),
+            ref.read(accountBalancesProvider.future),
+            ref.read(homeBudgetProgressProvider.future),
+            ref.read(transactionEntriesProvider.future),
+          ]);
+        },
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
             const _Header(),
             const SizedBox(height: 20),
             _BalanceCard(
-              totals: totals,
               balances: balances,
               visible: ref.watch(balancesVisibleProvider),
+              waveAnimation: motionEnabled ? _waveController : null,
             ),
             const SizedBox(height: 16),
             const _PeriodSelector(),
+            const SizedBox(height: 16),
+            _Reveal(
+              animation: _revealController,
+              enabled: motionEnabled,
+              interval: const Interval(0, .65, curve: Curves.easeOutCubic),
+              child: _FinancialHighlights(
+                metrics: metrics,
+                visible: ref.watch(balancesVisibleProvider),
+              ),
+            ),
             const SizedBox(height: 24),
             Text(
               'Quick actions',
@@ -38,7 +102,12 @@ class HomeScreen extends ConsumerWidget {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
-            const _QuickActions(),
+            _Reveal(
+              animation: _revealController,
+              enabled: motionEnabled,
+              interval: const Interval(.12, .76, curve: Curves.easeOutCubic),
+              child: const _QuickActions(),
+            ),
             const SizedBox(height: 24),
             Text(
               'Budget preview',
@@ -47,7 +116,12 @@ class HomeScreen extends ConsumerWidget {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
-            const _BudgetPreview(),
+            _Reveal(
+              animation: _revealController,
+              enabled: motionEnabled,
+              interval: const Interval(.24, .88, curve: Curves.easeOutCubic),
+              child: const _BudgetPreview(),
+            ),
             const SizedBox(height: 24),
             Text(
               'Recent activity',
@@ -56,7 +130,12 @@ class HomeScreen extends ConsumerWidget {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
-            const _RecentActivity(),
+            _Reveal(
+              animation: _revealController,
+              enabled: motionEnabled,
+              interval: const Interval(.36, 1, curve: Curves.easeOutCubic),
+              child: const _RecentActivity(),
+            ),
           ],
         ),
       ),
@@ -95,13 +174,13 @@ class _Header extends ConsumerWidget {
 
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
-    required this.totals,
     required this.balances,
     required this.visible,
+    required this.waveAnimation,
   });
-  final AsyncValue<PeriodTotals> totals;
   final AsyncValue<List<AccountBalanceSummary>> balances;
   final bool visible;
+  final Animation<double>? waveAnimation;
 
   @override
   Widget build(BuildContext context) {
@@ -111,78 +190,68 @@ class _BalanceCard extends StatelessWidget {
         color: WaveColors.primary,
         borderRadius: BorderRadius.all(Radius.circular(20)),
       ),
-      child: totals.when(
+      child: balances.when(
         loading: () => const SizedBox(
-          height: 118,
+          height: 104,
           child: Center(child: CircularProgressIndicator(color: Colors.white)),
         ),
-        error: (error, _) => const SizedBox(
-          height: 118,
+        error: (_, _) => const SizedBox(
+          height: 104,
           child: Center(
             child: Text(
-              'Unable to load totals',
+              'Unable to load balance',
               style: TextStyle(color: Colors.white),
             ),
           ),
         ),
-        data: (value) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        data: (items) => Stack(
           children: [
-            const Text(
-              'Total balance',
-              style: TextStyle(color: Colors.white70),
+            Positioned.fill(
+              child: waveAnimation == null
+                  ? CustomPaint(painter: const _WavePainter())
+                  : AnimatedBuilder(
+                      animation: waveAnimation!,
+                      builder: (_, _) => CustomPaint(
+                        painter: _WavePainter(phase: waveAnimation!.value),
+                      ),
+                    ),
             ),
-            const SizedBox(height: 4),
-            balances.when(
-              loading: () => const Text(
-                '—',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              error: (_, _) => const Text(
-                'Unavailable',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              data: (items) => Text(
-                visible
-                    ? Money(
-                        items.fold<int>(
-                          0,
-                          (total, item) => total + item.balanceMinor,
-                        ),
-                      ).format()
-                    : '••••••',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _Metric(
-                    label: 'Income',
-                    amount: visible
-                        ? Money(value.incomeMinor).format()
-                        : '••••',
+                const Row(
+                  children: [
+                    Text(
+                      'Total balance',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    SizedBox(width: 6),
+                    Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  visible
+                      ? Money(
+                          items.fold<int>(
+                            0,
+                            (total, item) => total + item.balanceMinor,
+                          ),
+                        ).format()
+                      : '••••••',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _Metric(
-                    label: 'Expenses',
-                    amount: visible
-                        ? Money(value.expenseMinor).format()
-                        : '••••',
-                  ),
+                const SizedBox(height: 30),
+                Text(
+                  '${items.length} active ${items.length == 1 ? 'account' : 'accounts'}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),
@@ -193,49 +262,274 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.amount});
-  final String label;
-  final String amount;
+class _WavePainter extends CustomPainter {
+  const _WavePainter({this.phase = 0});
+  final double phase;
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-      const SizedBox(height: 4),
-      Text(
-        amount,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
+  void paint(Canvas canvas, Size size) {
+    for (var layer = 0; layer < 3; layer++) {
+      final baseline = size.height * (.68 + layer * .07);
+      final path = Path()..moveTo(0, baseline);
+      for (double x = 0; x <= size.width; x += 4) {
+        path.lineTo(
+          x,
+          baseline +
+              math.sin(
+                    (x / size.width * math.pi * 2) +
+                        layer +
+                        phase * math.pi * 2,
+                  ) *
+                  (8 - layer * 2),
+        );
+      }
+      path
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height)
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()..color = Colors.white.withValues(alpha: .12 - layer * .025),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WavePainter oldDelegate) =>
+      oldDelegate.phase != phase;
+}
+
+class _Reveal extends StatelessWidget {
+  const _Reveal({
+    required this.animation,
+    required this.enabled,
+    required this.interval,
+    required this.child,
+  });
+
+  final AnimationController animation;
+  final bool enabled;
+  final Interval interval;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    final curved = CurvedAnimation(parent: animation, curve: interval);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, .05),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
       ),
-    ],
-  );
+    );
+  }
 }
 
 class _PeriodSelector extends ConsumerWidget {
   const _PeriodSelector();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedPeriodKindProvider);
-    const options = <(ExpensePeriodKind, String)>[
-      (ExpensePeriodKind.day, 'Today'),
-      (ExpensePeriodKind.week, 'Week'),
-      (ExpensePeriodKind.month, 'Month'),
-      (ExpensePeriodKind.year, 'Year'),
-    ];
-    return SegmentedButton<ExpensePeriodKind>(
-      segments: [
-        for (final option in options)
-          ButtonSegment(value: option.$1, label: Text(option.$2)),
-      ],
-      selected: {selected},
-      showSelectedIcon: false,
-      onSelectionChanged: (value) =>
-          ref.read(selectedPeriodKindProvider.notifier).state = value.first,
+    final period = ref.watch(selectedPeriodProvider);
+    return DropdownButtonFormField<ExpensePeriodKind>(
+      initialValue: selected,
+      decoration: const InputDecoration(
+        labelText: 'Dashboard period',
+        prefixIcon: Icon(Icons.date_range_outlined),
+      ),
+      items: ExpensePeriodKind.values
+          .map(
+            (kind) => DropdownMenuItem(
+              value: kind,
+              child: Text(
+                kind == ExpensePeriodKind.custom
+                    ? _customLabel(period)
+                    : _periodLabel(kind),
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: (kind) async {
+        if (kind == null) return;
+        if (kind != ExpensePeriodKind.custom) {
+          ref.read(selectedPeriodKindProvider.notifier).state = kind;
+          return;
+        }
+        final range = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+          initialDateRange: DateTimeRange(
+            start: period.startInclusive,
+            end: period.endExclusive.subtract(const Duration(days: 1)),
+          ),
+        );
+        if (range == null) return;
+        ref.read(selectedCustomPeriodProvider.notifier).state =
+            ExpensePeriod.custom(range.start, range.end);
+        ref.read(selectedPeriodKindProvider.notifier).state =
+            ExpensePeriodKind.custom;
+      },
     );
   }
+
+  static String _periodLabel(ExpensePeriodKind kind) => switch (kind) {
+    ExpensePeriodKind.day => 'Today',
+    ExpensePeriodKind.week => 'This week',
+    ExpensePeriodKind.month => 'This month',
+    ExpensePeriodKind.year => 'This year',
+    ExpensePeriodKind.custom => 'Custom range',
+  };
+
+  static String _customLabel(ExpensePeriod period) {
+    if (period.kind != ExpensePeriodKind.custom) return 'Custom range';
+    final end = period.endExclusive.subtract(const Duration(days: 1));
+    return '${DateFormat.MMMd().format(period.startInclusive)} – ${DateFormat.MMMd().format(end)}';
+  }
+}
+
+class _FinancialHighlights extends StatelessWidget {
+  const _FinancialHighlights({required this.metrics, required this.visible});
+
+  final AsyncValue<DashboardMetrics> metrics;
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) => metrics.when(
+    loading: () => const SizedBox(
+      height: 168,
+      child: Center(child: CircularProgressIndicator()),
+    ),
+    error: (_, _) => const _EmptyCard(
+      icon: Icons.insights_outlined,
+      title: 'Highlights unavailable',
+      message: 'Pull down to try loading your summary again.',
+    ),
+    data: (value) {
+      final comparison = value.expenseChange;
+      final comparisonText = comparison == null
+          ? 'No previous spending'
+          : comparison == 0
+          ? 'Same as previous period'
+          : '${(comparison.abs() * 100).round()}% ${comparison < 0 ? 'less' : 'more'} spending';
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _HighlightCard(
+                  label: 'Income',
+                  value: visible ? Money(value.incomeMinor).format() : '••••',
+                  icon: Icons.trending_up_rounded,
+                  color: WaveColors.income,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _HighlightCard(
+                  label: 'Expenses',
+                  value: visible ? Money(value.expenseMinor).format() : '••••',
+                  icon: Icons.trending_down_rounded,
+                  color: WaveColors.expense,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _HighlightCard(
+                  label: 'Net saved',
+                  value: visible ? Money(value.netSavedMinor).format() : '••••',
+                  icon: Icons.savings_outlined,
+                  color: value.netSavedMinor >= 0
+                      ? WaveColors.savings
+                      : WaveColors.expense,
+                  supporting:
+                      '${(value.savingsRate * 100).round()}% savings rate',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _HighlightCard(
+                  label: 'Daily average',
+                  value: visible
+                      ? Money(value.averageExpenseMinor).format()
+                      : '••••',
+                  icon: Icons.calendar_today_outlined,
+                  color: WaveColors.primary,
+                  supporting: comparisonText,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _HighlightCard extends StatelessWidget {
+  const _HighlightCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.supporting,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final String? supporting;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(color: WaveColors.muted, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(fontWeight: FontWeight.w900, color: color),
+            ),
+          ),
+          if (supporting != null) ...[
+            const SizedBox(height: 5),
+            Text(
+              supporting!,
+              maxLines: 2,
+              style: const TextStyle(color: WaveColors.muted, fontSize: 10),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }
 
 class _QuickActions extends StatelessWidget {
@@ -362,6 +656,9 @@ class _BudgetPreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final budgets = ref.watch(homeBudgetProgressProvider);
+    final motionEnabled =
+        ref.watch(appearanceProvider).gentleMotion &&
+        !MediaQuery.disableAnimationsOf(context);
     return budgets.when(
       loading: () => const Card(
         child: Padding(
@@ -407,14 +704,26 @@ class _BudgetPreview extends ConsumerWidget {
                               ],
                             ),
                             const SizedBox(height: 7),
-                            LinearProgressIndicator(
-                              value: item.fraction.clamp(0, 1),
-                              borderRadius: BorderRadius.circular(6),
-                              color: item.fraction >= 1
-                                  ? WaveColors.expense
-                                  : item.fraction >= .75
-                                  ? WaveColors.warning
-                                  : WaveColors.primary,
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(
+                                begin: motionEnabled
+                                    ? 0
+                                    : item.fraction.clamp(0, 1),
+                                end: item.fraction.clamp(0, 1),
+                              ),
+                              duration: motionEnabled
+                                  ? const Duration(milliseconds: 500)
+                                  : Duration.zero,
+                              curve: Curves.easeOutCubic,
+                              builder: (_, value, _) => LinearProgressIndicator(
+                                value: value,
+                                borderRadius: BorderRadius.circular(6),
+                                color: item.fraction >= 1
+                                    ? WaveColors.expense
+                                    : item.fraction >= .75
+                                    ? WaveColors.warning
+                                    : WaveColors.primary,
+                              ),
                             ),
                           ],
                         ),

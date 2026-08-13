@@ -96,7 +96,7 @@ Suggested chart grouping:
 
 ## 3. Post-MVP Features
 
-- Recurring transaction rules and scheduled entry suggestions
+- Planned future expenses and upcoming income, including one-time and recurring schedules, due states, reminders, manual or automatic posting, and cash-flow forecasting
 - Income-source templates
 - Savings goals
 - Weekly and custom-period budgets
@@ -248,6 +248,7 @@ Rules:
 7. **Categories** — create, edit, archive, and merge categories
 8. **Reports** — adaptive Daily, Weekly, Monthly, Yearly, and Custom expense analysis
 9. **More/Settings** — account and category management, reports, backups, appearance, privacy, and about
+10. **Planned** — upcoming income and expenses, recurrence, due/overdue status, reminders, and posting history
 
 ## 7. Navigation
 
@@ -284,6 +285,8 @@ Reports and management screens open from More. The Add destination remains the v
 8. **Reports** — period comparison, category breakdown, and adaptive trends
 9. **Backup** — versioned JSON export, validated atomic restore, and CSV export
 10. **Polish** — accessibility, empty/error states, privacy mode, motion, and dark theme
+
+The next development sequence, including stabilization, the revised dashboard, savings goals, planned transactions, themes, privacy, backup improvements, and release verification, is defined in [DEVELOPMENT_PHASE_PLAN.md](DEVELOPMENT_PHASE_PLAN.md).
 
 ## 10. Required Tests
 
