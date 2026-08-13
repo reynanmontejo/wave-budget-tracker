@@ -9,6 +9,10 @@ import '../categories/categories_screen.dart';
 import '../reports/reports_screen.dart';
 import '../settings/backup_screen.dart';
 import '../settings/appearance_screen.dart';
+import '../planned/planned_screen.dart';
+import '../savings/savings_goals_screen.dart';
+import '../cash_flow/cash_flow_screen.dart';
+import '../settings/privacy_screen.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -79,6 +83,51 @@ class MoreScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          Card(
+            child: _MoreTile(
+              icon: Icons.account_balance_outlined,
+              title: 'Cash flow',
+              subtitle: 'Forecasts and estimated safe to spend',
+              onTap: () => Navigator.push(
+                context,
+                WavePageRoute<void>(
+                  motionEnabled: motionEnabled,
+                  builder: (_) => const CashFlowScreen(),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            child: _MoreTile(
+              icon: Icons.savings_outlined,
+              title: 'Savings goals',
+              subtitle: 'Targets and contribution progress',
+              onTap: () => Navigator.push(
+                context,
+                WavePageRoute<void>(
+                  motionEnabled: motionEnabled,
+                  builder: (_) => const SavingsGoalsScreen(),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            child: _MoreTile(
+              icon: Icons.event_note_outlined,
+              title: 'Upcoming',
+              subtitle: 'Future expenses and expected income',
+              onTap: () => Navigator.push(
+                context,
+                WavePageRoute<void>(
+                  motionEnabled: motionEnabled,
+                  builder: (_) => const PlannedScreen(),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
           const _SectionLabel('Personalize'),
           const SizedBox(height: 8),
@@ -115,10 +164,17 @@ class MoreScreen extends ConsumerWidget {
                   ),
                 ),
                 const Divider(height: 1, indent: 64),
-                const _MoreTile(
+                _MoreTile(
                   icon: Icons.visibility_off_outlined,
                   title: 'Privacy',
                   subtitle: 'Balance visibility and app lock',
+                  onTap: () => Navigator.push(
+                    context,
+                    WavePageRoute<void>(
+                      motionEnabled: motionEnabled,
+                      builder: (_) => const PrivacyScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),

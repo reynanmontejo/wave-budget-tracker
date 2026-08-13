@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/wave_theme.dart';
 import '../../data/backup_service.dart';
@@ -17,11 +19,35 @@ class BackupScreen extends ConsumerStatefulWidget {
 
 class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _busy = false;
+  DateTime? _lastSuccessfulBackup;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastBackup();
+  }
+
+  Future<void> _loadLastBackup() async {
+    final value = await ref
+        .read(databaseProvider)
+        .preference('last_successful_backup_at');
+    if (mounted && value != null) {
+      setState(() => _lastSuccessfulBackup = DateTime.tryParse(value));
+    }
+  }
 
   Future<void> _createBackup() async {
     setState(() => _busy = true);
     try {
       final backup = await ref.read(backupServiceProvider).createJsonBackup();
+      final completedAt = DateTime.now();
+      await ref
+          .read(databaseProvider)
+          .setPreference(
+            'last_successful_backup_at',
+            completedAt.toUtc().toIso8601String(),
+          );
+      if (mounted) setState(() => _lastSuccessfulBackup = completedAt);
       ref.invalidate(backupListProvider);
       _showMessage('Backup saved to ${backup.file.path}');
     } on FileSystemException catch (error) {
@@ -35,11 +61,39 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     setState(() => _busy = true);
     try {
       final export = await ref.read(backupServiceProvider).exportCsv();
-      _showMessage('CSV saved to ${export.file.path}');
+      await _shareFile(export.file, text: 'Wave transaction export');
     } on FileSystemException catch (error) {
       _showMessage('CSV export failed: ${error.message}');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _importBackup() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+      );
+      final path = result?.files.single.path;
+      if (path == null) return;
+      final file = File(path);
+      final stat = await file.stat();
+      await _restore(
+        BackupInfo(file: file, createdAt: stat.modified, sizeBytes: stat.size),
+      );
+    } catch (error) {
+      _showMessage('Unable to open that backup file: $error');
+    }
+  }
+
+  Future<void> _shareFile(File file, {String? text}) async {
+    try {
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], text: text),
+      );
+    } catch (error) {
+      _showMessage('Unable to share this file: $error');
     }
   }
 
@@ -49,7 +103,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Replace all Wave data?'),
         content: Text(
-          'Restore the backup from ${DateFormat.yMMMd().add_jm().format(backup.createdAt)}? Current accounts, transactions, transfers, and budgets will be replaced.',
+          'Restore the backup from ${DateFormat.yMMMd().add_jm().format(backup.createdAt)}? Current accounts, transactions, transfers, budgets, planned activity, and savings goals will be replaced.',
         ),
         actions: [
           TextButton(
@@ -94,6 +148,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     ref.invalidate(budgetProgressProvider);
     ref.invalidate(homeBudgetProgressProvider);
     ref.invalidate(expenseReportProvider);
+    ref.invalidate(scheduledTransactionsProvider);
+    ref.invalidate(scheduleForecastProvider);
+    ref.invalidate(cashFlowInsightProvider);
+    ref.invalidate(savingsGoalsProvider);
+    ref.invalidate(dashboardMetricsProvider);
   }
 
   void _showMessage(String message) {
@@ -144,6 +203,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
+            onPressed: _busy ? null : _importBackup,
+            icon: const Icon(Icons.file_open_outlined),
+            label: const Text('Import backup from a file'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+            ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
             onPressed: _busy ? null : _exportCsv,
             icon: const Icon(Icons.table_view_outlined),
             label: const Text('Export transactions as CSV'),
@@ -151,6 +219,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               minimumSize: const Size.fromHeight(52),
             ),
           ),
+          if (_lastSuccessfulBackup case final completedAt?) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Last successful backup: ${DateFormat.yMMMd().add_jm().format(completedAt.toLocal())}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: WaveColors.muted),
+            ),
+          ],
           const SizedBox(height: 28),
           Text(
             'Backup history',
@@ -201,11 +277,26 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                             subtitle: Text(
                               '${_fileSize(items[index].sizeBytes)} • ${items[index].file.path}',
                             ),
-                            trailing: TextButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () => _restore(items[index]),
-                              child: const Text('Restore'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Share backup',
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _shareFile(
+                                          items[index].file,
+                                          text: 'Wave budget backup',
+                                        ),
+                                  icon: const Icon(Icons.share_outlined),
+                                ),
+                                TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _restore(items[index]),
+                                  child: const Text('Restore'),
+                                ),
+                              ],
                             ),
                           ),
                           if (index != items.length - 1)

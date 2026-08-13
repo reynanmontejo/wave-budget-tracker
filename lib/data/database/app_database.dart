@@ -99,6 +99,85 @@ class AppPreferences extends Table {
   Set<Column<Object>> get primaryKey => {key};
 }
 
+class ScheduledTransactions extends Table {
+  TextColumn get id => text()();
+  TextColumn get type => text()();
+  IntColumn get amountMinor => integer()();
+  TextColumn get accountId => text().references(Accounts, #id)();
+  TextColumn get categoryId => text().references(Categories, #id)();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get nextDueAt => dateTime()();
+  TextColumn get recurrence => text().withDefault(const Constant('none'))();
+  IntColumn get recurrenceInterval =>
+      integer().withDefault(const Constant(1))();
+  IntColumn get recurrenceAnchorDay => integer().nullable()();
+  DateTimeColumn get endAt => dateTime().nullable()();
+  BoolColumn get autoPost => boolean().withDefault(const Constant(false))();
+  BoolColumn get reminderEnabled =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get reminderOffsetMinutes => integer().nullable()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  DateTimeColumn get lastPostedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class ScheduledOccurrences extends Table {
+  TextColumn get id => text()();
+  TextColumn get scheduleId => text().references(
+    ScheduledTransactions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  DateTimeColumn get dueAt => dateTime()();
+  TextColumn get state => text()();
+  TextColumn get ledgerTransactionId =>
+      text().nullable().references(LedgerTransactions, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {scheduleId, dueAt},
+  ];
+}
+
+class SavingsGoals extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text().withLength(min: 1, max: 100)();
+  IntColumn get targetMinor => integer()();
+  DateTimeColumn get targetDate => dateTime().nullable()();
+  TextColumn get linkedAccountId =>
+      text().nullable().references(Accounts, #id)();
+  IntColumn get colorValue =>
+      integer().withDefault(const Constant(0xFF269CA3))();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class SavingsContributions extends Table {
+  TextColumn get id => text()();
+  TextColumn get goalId =>
+      text().references(SavingsGoals, #id, onDelete: KeyAction.cascade)();
+  IntColumn get amountMinor => integer()();
+  DateTimeColumn get occurredAt => dateTime()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get reversedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 final class PeriodTotals {
   const PeriodTotals({required this.incomeMinor, required this.expenseMinor});
 
@@ -226,6 +305,10 @@ final class ExpenseReport {
     Transfers,
     Budgets,
     AppPreferences,
+    ScheduledTransactions,
+    ScheduledOccurrences,
+    SavingsGoals,
+    SavingsContributions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -233,7 +316,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'wave'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -241,6 +324,14 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (migrator, from, to) async {
       if (from < 2) {
         await migrator.createTable(appPreferences);
+      }
+      if (from < 3) {
+        await migrator.createTable(scheduledTransactions);
+        await migrator.createTable(scheduledOccurrences);
+      }
+      if (from < 4) {
+        await migrator.createTable(savingsGoals);
+        await migrator.createTable(savingsContributions);
       }
     },
     beforeOpen: (details) async {

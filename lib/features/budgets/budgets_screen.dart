@@ -6,6 +6,7 @@ import '../../core/money/money.dart';
 import '../../core/theme/wave_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
+import '../../core/widgets/confirm_add_dialog.dart';
 
 class BudgetsScreen extends ConsumerWidget {
   const BudgetsScreen({super.key});
@@ -179,6 +180,19 @@ class BudgetsScreen extends ConsumerWidget {
                       }
                       setState(() => saving = true);
                       try {
+                        final categoryName = categories
+                            .where((item) => item.id == categoryId)
+                            .firstOrNull
+                            ?.name;
+                        final confirmed = await confirmAdd(
+                          dialogContext,
+                          title: 'Confirm monthly budget',
+                          details: [
+                            ('Category', categoryName ?? 'Selected category'),
+                            ('Limit', Money(amount).format()),
+                          ],
+                        );
+                        if (!confirmed || !dialogContext.mounted) return;
                         await ref
                             .read(budgetRepositoryProvider)
                             .setMonthlyBudget(

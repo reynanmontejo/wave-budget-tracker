@@ -8,9 +8,13 @@ import '../../core/dashboard/dashboard_metrics.dart';
 import '../../core/money/money.dart';
 import '../../core/period/expense_period.dart';
 import '../../core/theme/wave_theme.dart';
+import '../../core/theme/wave_page_route.dart';
 import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
+import '../../data/schedule_repository.dart';
+import '../../data/savings_repository.dart';
 import '../transactions/add_transaction_sheet.dart';
+import '../cash_flow/cash_flow_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -94,6 +98,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 visible: ref.watch(balancesVisibleProvider),
               ),
             ),
+            const SizedBox(height: 16),
+            _UpcomingForecast(
+              forecast: ref.watch(scheduleForecastProvider),
+              visible: ref.watch(balancesVisibleProvider),
+              days: ref.watch(forecastDaysProvider),
+              onDaysChanged: (days) =>
+                  ref.read(forecastDaysProvider.notifier).state = days,
+            ),
+            const SizedBox(height: 16),
+            _SavingsGoalsPreview(
+              goals: ref.watch(savingsGoalsProvider),
+              visible: ref.watch(balancesVisibleProvider),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                WavePageRoute<void>(
+                  motionEnabled: motionEnabled,
+                  builder: (_) => const CashFlowScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.water_drop_outlined),
+              label: const Text('View cash flow and safe to spend'),
+            ),
             const SizedBox(height: 24),
             Text(
               'Quick actions',
@@ -143,6 +172,195 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
+class _SavingsGoalsPreview extends StatelessWidget {
+  const _SavingsGoalsPreview({required this.goals, required this.visible});
+  final AsyncValue<List<SavingsGoalProgress>> goals;
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) => goals.when(
+    loading: () => const SizedBox.shrink(),
+    error: (_, _) => const SizedBox.shrink(),
+    data: (items) {
+      final active = items
+          .where((item) => item.goal.status == SavingsGoalStatus.active.name)
+          .toList();
+      if (active.isEmpty) return const SizedBox.shrink();
+      final saved = active.fold<int>(0, (sum, item) => sum + item.savedMinor);
+      final target = active.fold<int>(
+        0,
+        (sum, item) => sum + item.goal.targetMinor,
+      );
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.savings_outlined, color: WaveColors.savings),
+                  SizedBox(width: 8),
+                  Text(
+                    'Savings goals',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: target == 0 ? 0 : (saved / target).clamp(0, 1),
+                minHeight: 8,
+                borderRadius: BorderRadius.circular(8),
+                color: WaveColors.savings,
+              ),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      visible
+                          ? '${Money(saved).format()} allocated'
+                          : '•••• allocated',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  Text('${active.length} active'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _UpcomingForecast extends StatelessWidget {
+  const _UpcomingForecast({
+    required this.forecast,
+    required this.visible,
+    required this.days,
+    required this.onDaysChanged,
+  });
+
+  final AsyncValue<ScheduleForecast> forecast;
+  final bool visible;
+  final int days;
+  final ValueChanged<int> onDaysChanged;
+
+  @override
+  Widget build(BuildContext context) => forecast.when(
+    loading: () => const SizedBox(
+      height: 74,
+      child: Center(child: CircularProgressIndicator()),
+    ),
+    error: (_, _) => const SizedBox.shrink(),
+    data: (value) => Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.event_note_outlined,
+                  color: WaveColors.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Next $days days',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 7, label: Text('7d')),
+                    ButtonSegment(value: 30, label: Text('30d')),
+                  ],
+                  selected: {days},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (value) => onDaysChanged(value.first),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _ForecastAmount(
+                    label: 'Upcoming income',
+                    amount: value.incomeMinor,
+                    color: WaveColors.income,
+                    visible: visible,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ForecastAmount(
+                    label: 'Planned expenses',
+                    amount: value.expenseMinor,
+                    color: WaveColors.expense,
+                    visible: visible,
+                  ),
+                ),
+              ],
+            ),
+            if (value.items.isEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'No planned activity in this period.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _ForecastAmount extends StatelessWidget {
+  const _ForecastAmount({
+    required this.label,
+    required this.amount,
+    required this.color,
+    required this.visible,
+  });
+  final String label;
+  final int amount;
+  final Color color;
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 11,
+        ),
+      ),
+      const SizedBox(height: 4),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          visible ? Money(amount).format() : '••••',
+          style: TextStyle(color: color, fontWeight: FontWeight.w900),
+        ),
+      ),
+    ],
+  );
+}
+
 class _Header extends ConsumerWidget {
   const _Header();
   @override
@@ -150,13 +368,17 @@ class _Header extends ConsumerWidget {
     final visible = ref.watch(balancesVisibleProvider);
     return Row(
       children: [
-        const Icon(Icons.waves_rounded, color: WaveColors.primary, size: 32),
+        Icon(
+          Icons.waves_rounded,
+          color: Theme.of(context).colorScheme.primary,
+          size: 32,
+        ),
         const SizedBox(width: 10),
         Text(
           'Wave',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: WaveColors.primaryStrong,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
         ),
         const Spacer(),
@@ -504,7 +726,10 @@ class _HighlightCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(color: WaveColors.muted, fontSize: 12),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -523,7 +748,10 @@ class _HighlightCard extends StatelessWidget {
             Text(
               supporting!,
               maxLines: 2,
-              style: const TextStyle(color: WaveColors.muted, fontSize: 10),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 10,
+              ),
             ),
           ],
         ],
@@ -622,13 +850,16 @@ class _EmptyCard extends StatelessWidget {
       child: Row(
         children: [
           DecoratedBox(
-            decoration: const BoxDecoration(
-              color: WaveColors.primaryContainer,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
               shape: BoxShape.circle,
             ),
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Icon(icon, color: WaveColors.primaryStrong),
+              child: Icon(
+                icon,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -641,7 +872,12 @@ class _EmptyCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
-                Text(message, style: const TextStyle(color: WaveColors.muted)),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),

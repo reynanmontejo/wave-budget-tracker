@@ -48,17 +48,48 @@ class _PeriodSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedPeriodKindProvider);
-    return SegmentedButton<ExpensePeriodKind>(
-      segments: const [
-        ButtonSegment(value: ExpensePeriodKind.day, label: Text('Today')),
-        ButtonSegment(value: ExpensePeriodKind.week, label: Text('Week')),
-        ButtonSegment(value: ExpensePeriodKind.month, label: Text('Month')),
-        ButtonSegment(value: ExpensePeriodKind.year, label: Text('Year')),
-      ],
-      selected: {selected},
-      showSelectedIcon: false,
-      onSelectionChanged: (value) =>
-          ref.read(selectedPeriodKindProvider.notifier).state = value.first,
+    final period = ref.watch(selectedPeriodProvider);
+    return DropdownButtonFormField<ExpensePeriodKind>(
+      initialValue: selected,
+      decoration: const InputDecoration(
+        labelText: 'Report period',
+        prefixIcon: Icon(Icons.date_range_outlined),
+      ),
+      items: ExpensePeriodKind.values
+          .map(
+            (kind) => DropdownMenuItem(
+              value: kind,
+              child: Text(switch (kind) {
+                ExpensePeriodKind.day => 'Today',
+                ExpensePeriodKind.week => 'This week',
+                ExpensePeriodKind.month => 'This month',
+                ExpensePeriodKind.year => 'This year',
+                ExpensePeriodKind.custom => 'Custom range',
+              }),
+            ),
+          )
+          .toList(),
+      onChanged: (value) async {
+        if (value == null) return;
+        if (value != ExpensePeriodKind.custom) {
+          ref.read(selectedPeriodKindProvider.notifier).state = value;
+          return;
+        }
+        final range = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+          initialDateRange: DateTimeRange(
+            start: period.startInclusive,
+            end: period.endExclusive.subtract(const Duration(days: 1)),
+          ),
+        );
+        if (range == null) return;
+        ref.read(selectedCustomPeriodProvider.notifier).state =
+            ExpensePeriod.custom(range.start, range.end);
+        ref.read(selectedPeriodKindProvider.notifier).state =
+            ExpensePeriodKind.custom;
+      },
     );
   }
 }

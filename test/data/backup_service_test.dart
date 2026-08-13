@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -7,6 +8,8 @@ import 'package:wave/data/budget_repository.dart';
 import 'package:wave/data/database/app_database.dart';
 import 'package:wave/data/database/seed_data.dart';
 import 'package:wave/data/ledger_repository.dart';
+import 'package:wave/data/schedule_repository.dart';
+import 'package:wave/data/savings_repository.dart';
 
 void main() {
   late AppDatabase database;
@@ -57,8 +60,25 @@ void main() {
       month: DateTime(2026, 8),
       limitMinor: 100000,
     );
+    await ScheduleRepository(database).create(
+      type: 'expense',
+      amountMinor: 30000,
+      accountId: 'account-cash',
+      categoryId: 'category-food',
+      nextDueAt: DateTime(2026, 9, 1),
+      recurrence: ScheduleRecurrence.monthly,
+    );
+    await SavingsRepository(database).createGoal(
+      name: 'Emergency fund',
+      targetMinor: 500000,
+      linkedAccountId: 'account-bank',
+    );
     final backup = await backups.createJsonBackup();
 
+    await database.delete(database.scheduledOccurrences).go();
+    await database.delete(database.scheduledTransactions).go();
+    await database.delete(database.savingsContributions).go();
+    await database.delete(database.savingsGoals).go();
     await database.delete(database.budgets).go();
     await database.delete(database.transfers).go();
     await database.delete(database.ledgerTransactions).go();
@@ -68,6 +88,8 @@ void main() {
     expect(summary.transactions, 2);
     expect(summary.transfers, 1);
     expect(summary.budgets, 1);
+    expect(summary.schedules, 1);
+    expect(summary.savingsGoals, 1);
     expect(
       await database.select(database.ledgerTransactions).get(),
       hasLength(2),
@@ -86,6 +108,26 @@ void main() {
       await database.select(database.accounts).get(),
       hasLength(before.length),
     );
+  });
+
+  test('backup rejects a transaction using the wrong category type', () async {
+    await LedgerRepository(database).createEntry(
+      type: LedgerEntryType.income,
+      amountMinor: 10000,
+      accountId: 'account-cash',
+      categoryId: 'category-salary',
+      occurredAt: DateTime(2026, 8, 10),
+    );
+    final backup = await backups.createJsonBackup();
+    final payload =
+        jsonDecode(await backup.file.readAsString()) as Map<String, dynamic>;
+    final data = payload['data'] as Map<String, dynamic>;
+    final transactions = data['transactions'] as List<dynamic>;
+    (transactions.single as Map<String, dynamic>)['categoryId'] =
+        'category-food';
+    await backup.file.writeAsString(jsonEncode(payload));
+
+    expect(() => backups.restore(backup.file), throwsFormatException);
   });
 
   test('CSV export escapes notes containing commas and quotes', () async {

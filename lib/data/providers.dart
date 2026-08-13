@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/period/expense_period.dart';
 import '../core/dashboard/dashboard_metrics.dart';
 import '../core/theme/appearance_preferences.dart';
+import '../core/cash_flow/cash_flow_insight.dart';
+import '../core/privacy/privacy_controller.dart';
 import 'database/app_database.dart';
 import 'database/seed_data.dart';
 import 'ledger_repository.dart';
@@ -10,6 +12,9 @@ import 'management_repository.dart';
 import 'budget_repository.dart';
 import 'backup_service.dart';
 import 'onboarding_repository.dart';
+import 'schedule_repository.dart';
+import 'savings_repository.dart';
+import 'schedule_notification_service.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase();
@@ -17,12 +22,24 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   return database;
 });
 
+final privacyProvider = StateNotifierProvider<PrivacyController, PrivacyState>(
+  (ref) => PrivacyController(ref.watch(databaseProvider)),
+);
+
 final onboardingRepositoryProvider = Provider<OnboardingRepository>(
   (ref) => OnboardingRepository(ref.watch(databaseProvider)),
 );
 
 final onboardingCompleteProvider = FutureProvider<bool>((ref) {
-  return ref.watch(onboardingRepositoryProvider).isComplete();
+  return () async {
+    final complete = await ref.watch(onboardingRepositoryProvider).isComplete();
+    if (complete) {
+      final schedules = ref.watch(scheduleRepositoryProvider);
+      await schedules.processDueAutoPosts();
+      await schedules.syncAllNotifications();
+    }
+    return complete;
+  }();
 });
 
 final ledgerRepositoryProvider = Provider<LedgerRepository>(
@@ -40,6 +57,69 @@ final budgetRepositoryProvider = Provider<BudgetRepository>(
 final backupServiceProvider = Provider<BackupService>(
   (ref) => BackupService(ref.watch(databaseProvider)),
 );
+
+final notificationServiceProvider = Provider<DeviceScheduleNotificationService>(
+  (ref) => DeviceScheduleNotificationService(),
+);
+
+final scheduleRepositoryProvider = Provider<ScheduleRepository>(
+  (ref) => ScheduleRepository(
+    ref.watch(databaseProvider),
+    notifications: ref.watch(notificationServiceProvider),
+  ),
+);
+
+final savingsRepositoryProvider = Provider<SavingsRepository>(
+  (ref) => SavingsRepository(ref.watch(databaseProvider)),
+);
+
+final savingsGoalsProvider = StreamProvider<List<SavingsGoalProgress>>((
+  ref,
+) async* {
+  await ref.watch(seedProvider.future);
+  yield* ref.watch(savingsRepositoryProvider).watchGoals();
+});
+
+final scheduledTransactionsProvider =
+    StreamProvider<List<ScheduledTransaction>>((ref) async* {
+      await ref.watch(seedProvider.future);
+      yield* ref.watch(scheduleRepositoryProvider).watchActive();
+    });
+
+final forecastDaysProvider = StateProvider<int>((ref) => 30);
+final cashFlowDaysProvider = StateProvider<int>((ref) => 30);
+
+final scheduleForecastProvider = FutureProvider<ScheduleForecast>((ref) async {
+  await ref.watch(seedProvider.future);
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, now.day);
+  final days = ref.watch(forecastDaysProvider);
+  return ref
+      .watch(scheduleRepositoryProvider)
+      .forecast(start, start.add(Duration(days: days)));
+});
+
+final cashFlowInsightProvider = FutureProvider<CashFlowInsight>((ref) async {
+  await ref.watch(seedProvider.future);
+  final days = ref.watch(cashFlowDaysProvider);
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, now.day);
+  final end = start.add(Duration(days: days));
+  final actualStart = start.subtract(Duration(days: days));
+  final database = ref.watch(databaseProvider);
+  final results = await Future.wait<Object>([
+    database.accountBalances(),
+    database.totalsFor(ExpensePeriod.custom(actualStart, start)),
+    ref.watch(scheduleRepositoryProvider).forecast(start, end),
+    ref.watch(savingsRepositoryProvider).watchGoals().first,
+  ]);
+  return CashFlowInsight.calculate(
+    balances: results[0] as List<AccountBalanceSummary>,
+    actual: results[1] as PeriodTotals,
+    forecast: results[2] as ScheduleForecast,
+    goals: results[3] as List<SavingsGoalProgress>,
+  );
+});
 
 final backupListProvider = FutureProvider<List<BackupInfo>>((ref) async {
   return ref.watch(backupServiceProvider).listJsonBackups();

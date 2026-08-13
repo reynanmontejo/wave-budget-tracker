@@ -6,6 +6,7 @@ import '../../core/theme/wave_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../data/ledger_repository.dart';
 import '../../data/providers.dart';
+import '../../core/widgets/confirm_add_dialog.dart';
 
 enum EntryMode { expense, income, transfer }
 
@@ -55,6 +56,51 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _showError('Choose a destination account.');
       return;
     }
+
+    final accounts =
+        ref.read(accountsProvider).valueOrNull ?? const <Account>[];
+    final categories =
+        ref
+            .read(
+              _mode == EntryMode.income
+                  ? incomeCategoriesProvider
+                  : expenseCategoriesProvider,
+            )
+            .valueOrNull ??
+        const <Category>[];
+    final accountName = accounts
+        .where((item) => item.id == _accountId)
+        .firstOrNull
+        ?.name;
+    final confirmed = await confirmAdd(
+      context,
+      title: _mode == EntryMode.transfer
+          ? 'Confirm transfer'
+          : 'Confirm ${_mode.name}',
+      details: [
+        ('Amount', Money(amount).format()),
+        ('From', accountName ?? 'Selected account'),
+        if (_mode == EntryMode.transfer)
+          (
+            'To',
+            accounts
+                    .where((item) => item.id == _toAccountId)
+                    .firstOrNull
+                    ?.name ??
+                'Selected account',
+          )
+        else
+          (
+            'Category',
+            categories
+                    .where((item) => item.id == _categoryId)
+                    .firstOrNull
+                    ?.name ??
+                'Selected category',
+          ),
+      ],
+    );
+    if (!confirmed || !mounted) return;
 
     setState(() => _saving = true);
     try {
@@ -136,7 +182,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
 
     return Material(
-      color: WaveColors.background,
+      color: Theme.of(context).scaffoldBackgroundColor,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       child: Padding(
         padding: EdgeInsets.fromLTRB(

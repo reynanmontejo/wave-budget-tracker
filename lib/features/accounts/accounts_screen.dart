@@ -5,6 +5,7 @@ import '../../core/money/money.dart';
 import '../../core/theme/wave_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
+import '../../core/widgets/confirm_add_dialog.dart';
 
 class AccountsScreen extends ConsumerWidget {
   const AccountsScreen({super.key});
@@ -133,6 +134,16 @@ class AccountsScreen extends ConsumerWidget {
                   return;
                 }
                 try {
+                  final confirmed = await confirmAdd(
+                    dialogContext,
+                    title: 'Confirm new account',
+                    details: [
+                      ('Name', name.text.trim()),
+                      ('Type', type),
+                      ('Opening', Money(amount).format()),
+                    ],
+                  );
+                  if (!confirmed || !dialogContext.mounted) return;
                   await ref
                       .read(managementRepositoryProvider)
                       .createAccount(

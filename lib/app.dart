@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/theme/wave_theme.dart';
 import 'data/providers.dart';
 import 'features/onboarding/app_bootstrap.dart';
+import 'features/settings/app_lock_gate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class WaveApp extends ConsumerWidget {
@@ -19,7 +20,7 @@ class WaveApp extends ConsumerWidget {
           ? const Duration(milliseconds: 220)
           : Duration.zero,
       themeAnimationCurve: Curves.easeOutCubic,
-      home: const AppBootstrap(),
+      home: const AppLockGate(child: AppBootstrap()),
     );
   }
 }

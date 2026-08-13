@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
+import '../../core/widgets/confirm_add_dialog.dart';
 
 class CategoriesScreen extends ConsumerWidget {
   const CategoriesScreen({super.key});
@@ -84,6 +85,12 @@ class CategoriesScreen extends ConsumerWidget {
             FilledButton(
               onPressed: () async {
                 try {
+                  final confirmed = await confirmAdd(
+                    dialogContext,
+                    title: 'Confirm new category',
+                    details: [('Name', name.text.trim()), ('Type', type)],
+                  );
+                  if (!confirmed || !dialogContext.mounted) return;
                   await ref
                       .read(managementRepositoryProvider)
                       .createCategory(name: name.text, type: type);
