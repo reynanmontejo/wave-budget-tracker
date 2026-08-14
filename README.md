@@ -92,6 +92,12 @@ The selected soft-blue experience covers the core journey: checking the dashboar
 
 ![Wave soft-blue UI/UX screens showing the dashboard, expense entry, transactions, budgets, and accounts](design/wave-ui-concept.png)
 
+#### Improved input and motion
+
+The revised experience uses a two-step transaction flow, explicit review, Undo feedback, state-preserving navigation, and a subtle Wave transition. Primary navigation is organized around Home, Activity, Plan, and Insights.
+
+![Wave transaction input and page-motion proposal](design/wave-input-flow-motion-v2.png)
+
 #### Early visual exploration
 
 The original Calm Ledger concept established the layout, information hierarchy, and privacy-first budgeting experience before the palette evolved into Wave blue.

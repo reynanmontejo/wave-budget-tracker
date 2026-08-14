@@ -13,8 +13,9 @@ import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
 import '../../data/schedule_repository.dart';
 import '../../data/savings_repository.dart';
+import '../budgets/budgets_screen.dart';
 import '../transactions/add_transaction_sheet.dart';
-import '../cash_flow/cash_flow_screen.dart';
+import '../more/more_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -98,38 +99,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 visible: ref.watch(balancesVisibleProvider),
               ),
             ),
-            const SizedBox(height: 16),
-            _UpcomingForecast(
-              forecast: ref.watch(scheduleForecastProvider),
-              visible: ref.watch(balancesVisibleProvider),
-              days: ref.watch(forecastDaysProvider),
-              onDaysChanged: (days) =>
-                  ref.read(forecastDaysProvider.notifier).state = days,
-            ),
-            const SizedBox(height: 16),
-            _SavingsGoalsPreview(
-              goals: ref.watch(savingsGoalsProvider),
-              visible: ref.watch(balancesVisibleProvider),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                WavePageRoute<void>(
-                  motionEnabled: motionEnabled,
-                  builder: (_) => const CashFlowScreen(),
-                ),
-              ),
-              icon: const Icon(Icons.water_drop_outlined),
-              label: const Text('View cash flow and safe to spend'),
-            ),
             const SizedBox(height: 24),
-            Text(
-              'Quick actions',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            const _DashboardSectionHeader('Quick actions'),
             const SizedBox(height: 12),
             _Reveal(
               animation: _revealController,
@@ -138,26 +109,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: const _QuickActions(),
             ),
             const SizedBox(height: 24),
-            Text(
-              'Budget preview',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            const _DashboardSectionHeader('Coming up'),
+            const SizedBox(height: 12),
+            _UpcomingForecast(
+              forecast: ref.watch(scheduleForecastProvider),
+              visible: ref.watch(balancesVisibleProvider),
+              days: ref.watch(forecastDaysProvider),
+              onDaysChanged: (days) =>
+                  ref.read(forecastDaysProvider.notifier).state = days,
             ),
+            const SizedBox(height: 24),
+            const _DashboardSectionHeader('One thing to watch'),
             const SizedBox(height: 12),
             _Reveal(
               animation: _revealController,
               enabled: motionEnabled,
               interval: const Interval(.24, .88, curve: Curves.easeOutCubic),
-              child: const _BudgetPreview(),
+              child: const _BudgetInsight(),
             ),
             const SizedBox(height: 24),
-            Text(
-              'Recent activity',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            const _DashboardSectionHeader('Recent activity'),
             const SizedBox(height: 12),
             _Reveal(
               animation: _revealController,
@@ -172,6 +143,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
+// Retained as a small reusable preview for future dashboard customization.
+// ignore: unused_element
 class _SavingsGoalsPreview extends StatelessWidget {
   const _SavingsGoalsPreview({required this.goals, required this.visible});
   final AsyncValue<List<SavingsGoalProgress>> goals;
@@ -311,7 +284,7 @@ class _UpcomingForecast extends StatelessWidget {
             if (value.items.isEmpty) ...[
               const SizedBox(height: 10),
               Text(
-                'No planned activity in this period.',
+                'Nothing planned yet. Open Plan to add future income or expenses.',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
@@ -361,11 +334,28 @@ class _ForecastAmount extends StatelessWidget {
   );
 }
 
+class _DashboardSectionHeader extends StatelessWidget {
+  const _DashboardSectionHeader(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+  );
+}
+
 class _Header extends ConsumerWidget {
   const _Header();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final visible = ref.watch(balancesVisibleProvider);
+    final motionEnabled =
+        ref.watch(appearanceProvider).gentleMotion &&
+        !MediaQuery.disableAnimationsOf(context);
     return Row(
       children: [
         Icon(
@@ -388,6 +378,17 @@ class _Header extends ConsumerWidget {
           icon: Icon(
             visible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
           ),
+        ),
+        IconButton(
+          onPressed: () => Navigator.push(
+            context,
+            WavePageRoute<void>(
+              motionEnabled: motionEnabled,
+              builder: (_) => const MoreScreen(),
+            ),
+          ),
+          tooltip: 'Accounts and settings',
+          icon: const Icon(Icons.settings_outlined),
         ),
       ],
     );
@@ -887,8 +888,8 @@ class _EmptyCard extends StatelessWidget {
   );
 }
 
-class _BudgetPreview extends ConsumerWidget {
-  const _BudgetPreview();
+class _BudgetInsight extends ConsumerWidget {
+  const _BudgetInsight();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final budgets = ref.watch(homeBudgetProgressProvider);
@@ -907,69 +908,126 @@ class _BudgetPreview extends ConsumerWidget {
         title: 'Budget preview unavailable',
         message: 'Your budget data was not changed.',
       ),
-      data: (items) => items.isEmpty
-          ? const _EmptyCard(
-              icon: Icons.pie_chart_outline_rounded,
-              title: 'No budgets yet',
-              message: 'Set a monthly limit to see your progress here.',
-            )
-          : Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    for (final item in items.take(3))
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item.categoryName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  '${Money(item.spentMinor).format()} / ${Money(item.budget.limitMinor).format()}',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 7),
-                            TweenAnimationBuilder<double>(
-                              tween: Tween(
-                                begin: motionEnabled
-                                    ? 0
-                                    : item.fraction.clamp(0, 1),
-                                end: item.fraction.clamp(0, 1),
-                              ),
-                              duration: motionEnabled
-                                  ? const Duration(milliseconds: 500)
-                                  : Duration.zero,
-                              curve: Curves.easeOutCubic,
-                              builder: (_, value, _) => LinearProgressIndicator(
-                                value: value,
-                                borderRadius: BorderRadius.circular(6),
-                                color: item.fraction >= 1
-                                    ? WaveColors.expense
-                                    : item.fraction >= .75
-                                    ? WaveColors.warning
-                                    : WaveColors.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
+      data: (items) {
+        if (items.isEmpty) {
+          return _DashboardInsightTile(
+            icon: Icons.pie_chart_outline_rounded,
+            title: 'Create your first budget',
+            message: 'Set one monthly limit to start tracking spending.',
+            color: WaveColors.primary,
+            onTap: () => _openBudgets(context, motionEnabled),
+          );
+        }
+        final item = [...items]
+          ..sort((a, b) => b.fraction.compareTo(a.fraction));
+        final focus = item.first;
+        final percent = (focus.fraction * 100).round();
+        final color = focus.fraction >= 1
+            ? WaveColors.expense
+            : focus.fraction >= .75
+            ? WaveColors.warning
+            : WaveColors.primary;
+        final status = focus.fraction >= 1
+            ? 'over its monthly limit'
+            : focus.fraction >= .75
+            ? 'approaching its monthly limit'
+            : 'currently on track';
+        return _DashboardInsightTile(
+          icon: Icons.pie_chart_rounded,
+          title: '${focus.categoryName}: $percent% used',
+          message: 'This budget is $status.',
+          color: color,
+          progress: focus.fraction.clamp(0, 1),
+          motionEnabled: motionEnabled,
+          onTap: () => _openBudgets(context, motionEnabled),
+        );
+      },
     );
   }
+
+  void _openBudgets(BuildContext context, bool motionEnabled) {
+    Navigator.push(
+      context,
+      WavePageRoute<void>(
+        motionEnabled: motionEnabled,
+        builder: (_) => const BudgetsScreen(),
+      ),
+    );
+  }
+}
+
+class _DashboardInsightTile extends StatelessWidget {
+  const _DashboardInsightTile({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.color,
+    required this.onTap,
+    this.progress,
+    this.motionEnabled = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Color color;
+  final VoidCallback onTap;
+  final double? progress;
+  final bool motionEnabled;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: color.withValues(alpha: .13),
+              foregroundColor: color,
+              child: Icon(icon),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(message),
+                  if (progress != null) ...[
+                    const SizedBox(height: 10),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(
+                        begin: motionEnabled ? 0 : progress,
+                        end: progress,
+                      ),
+                      duration: motionEnabled
+                          ? const Duration(milliseconds: 500)
+                          : Duration.zero,
+                      builder: (_, value, _) => LinearProgressIndicator(
+                        value: value,
+                        color: color,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _RecentActivity extends ConsumerWidget {

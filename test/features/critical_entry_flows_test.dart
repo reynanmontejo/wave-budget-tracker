@@ -9,6 +9,8 @@ import 'package:wave/data/database/app_database.dart';
 import 'package:wave/data/database/seed_data.dart';
 import 'package:wave/data/providers.dart';
 import 'package:wave/features/accounts/accounts_screen.dart';
+import 'package:wave/features/insights/insights_hub_screen.dart';
+import 'package:wave/features/plan/plan_hub_screen.dart';
 import 'package:wave/features/transactions/add_transaction_sheet.dart';
 import 'package:wave/features/planned/planned_screen.dart';
 import 'package:wave/features/reports/reports_screen.dart';
@@ -104,7 +106,9 @@ void main() {
     },
   );
 
-  testWidgets('saves an expense through the entry sheet', (tester) async {
+  testWidgets('saves and can undo an expense through the entry sheet', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       app(
         Scaffold(
@@ -132,10 +136,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     await tester.enterText(find.widgetWithText(TextField, '0.00'), '85.25');
-    await tester.tap(find.widgetWithText(FilledButton, 'Save expense'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Confirm and add'));
-    await tester.pumpAndSettle();
+    expect(find.text('Expense details'), findsOneWidget);
+    expect(find.text('₱85.25'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm expense'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Expense added'), findsOneWidget);
+    expect(find.text('Undo'), findsOneWidget);
 
     final entries = await tester.runAsync(
       () => database
@@ -150,11 +159,45 @@ void main() {
     expect(savedEntries.single.amountMinor, 8525);
     expect(savedEntries.single.accountId, 'account-cash');
     expect(savedEntries.single.categoryId, isNotEmpty);
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    final remaining = await tester.runAsync(
+      () => database.select(database.ledgerTransactions).get(),
+    );
+    expect(remaining, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('Plan hub exposes upcoming, budgets, and savings', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app(const PlanHubScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Upcoming activity'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Budgets'), 180);
+    expect(find.text('Budgets'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Savings goals'), 180);
+    expect(find.text('Savings goals'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Insights hub distinguishes forecasts from actual reports', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app(const InsightsHubScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cash flow'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Reports'), 180);
+    expect(find.text('Reports'), findsOneWidget);
+    expect(find.text('FORECAST'), findsOneWidget);
+    expect(find.text('ACTUAL'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Reports accepts the shared custom period', (tester) async {

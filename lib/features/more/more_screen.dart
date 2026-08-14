@@ -6,12 +6,8 @@ import '../../core/theme/wave_page_route.dart';
 import '../../data/providers.dart';
 import '../accounts/accounts_screen.dart';
 import '../categories/categories_screen.dart';
-import '../reports/reports_screen.dart';
 import '../settings/backup_screen.dart';
 import '../settings/appearance_screen.dart';
-import '../planned/planned_screen.dart';
-import '../savings/savings_goals_screen.dart';
-import '../cash_flow/cash_flow_screen.dart';
 import '../settings/privacy_screen.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -64,68 +60,6 @@ class MoreScreen extends ConsumerWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          const _SectionLabel('Insights'),
-          const SizedBox(height: 8),
-          Card(
-            child: _MoreTile(
-              icon: Icons.insights_outlined,
-              title: 'Reports',
-              subtitle: 'Spending trends and category breakdowns',
-              onTap: () => Navigator.push(
-                context,
-                WavePageRoute<void>(
-                  motionEnabled: motionEnabled,
-                  builder: (_) => const ReportsScreen(),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            child: _MoreTile(
-              icon: Icons.account_balance_outlined,
-              title: 'Cash flow',
-              subtitle: 'Forecasts and estimated safe to spend',
-              onTap: () => Navigator.push(
-                context,
-                WavePageRoute<void>(
-                  motionEnabled: motionEnabled,
-                  builder: (_) => const CashFlowScreen(),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            child: _MoreTile(
-              icon: Icons.savings_outlined,
-              title: 'Savings goals',
-              subtitle: 'Targets and contribution progress',
-              onTap: () => Navigator.push(
-                context,
-                WavePageRoute<void>(
-                  motionEnabled: motionEnabled,
-                  builder: (_) => const SavingsGoalsScreen(),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            child: _MoreTile(
-              icon: Icons.event_note_outlined,
-              title: 'Upcoming',
-              subtitle: 'Future expenses and expected income',
-              onTap: () => Navigator.push(
-                context,
-                WavePageRoute<void>(
-                  motionEnabled: motionEnabled,
-                  builder: (_) => const PlannedScreen(),
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 24),

@@ -626,7 +626,7 @@ class _EmptyLedger extends StatelessWidget {
           ),
           SizedBox(height: 6),
           Text(
-            'Try another period or clear the active filters.',
+            'Use Add to record activity, or try another period or filter.',
             textAlign: TextAlign.center,
             style: TextStyle(color: WaveColors.muted),
           ),
