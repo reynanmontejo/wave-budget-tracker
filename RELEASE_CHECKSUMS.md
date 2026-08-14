@@ -1,13 +1,11 @@
 # Wave release checksums
 
-## Wave 1.1.0 RC5
+## Wave 1.1.0 RC6
 
 SHA-256:
 
 ```text
-99846969656B4FDAFCB90A522BCBB309AC42D97AE36192EDA77422D54F465A91  Wave-1.1.0-rc5.apk
-549FE985B6871CFC2E1AE6150610014F6D0566A22395C3E54DAC2752DA489FEB  Wave-1.1.0-rc5.aab
+ED0ED98CD947C8D5F453B375C905B211A1A59872382CBE8EF540D392C9C74FC4  Wave-1.1.0-rc6.apk
 ```
 
-The APK is intended for direct installation during personal testing. The AAB
-is provided for packaging verification and cannot be installed directly.
+The APK is intended for direct installation during personal testing.

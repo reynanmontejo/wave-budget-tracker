@@ -176,7 +176,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       context: context,
       initialDate: _occurredAt,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now(),
     );
     if (selected == null || !mounted) return;
     setState(() {
@@ -432,6 +432,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         const SizedBox(height: 16),
       ],
       DropdownButtonFormField<String>(
+        key: ValueKey('account-${_mode.name}-${_accountId ?? 'none'}'),
         initialValue: _accountId,
         isExpanded: true,
         decoration: InputDecoration(
@@ -455,6 +456,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           icon: const Icon(Icons.swap_vert_rounded, color: WaveColors.primary),
         ),
         DropdownButtonFormField<String>(
+          key: ValueKey('to-account-${_toAccountId ?? 'none'}'),
           initialValue: _toAccountId,
           isExpanded: true,
           decoration: const InputDecoration(

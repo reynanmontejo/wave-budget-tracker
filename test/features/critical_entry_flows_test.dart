@@ -31,10 +31,54 @@ void main() {
     await seedDatabase(database);
   });
 
+  tearDown(() async {
+    await database.close();
+  });
+
   Widget app(Widget child) => ProviderScope(
     overrides: [databaseProvider.overrideWithValue(database)],
     child: MaterialApp(theme: WaveTheme.light, home: child),
   );
+
+  Future<void> openEntrySheet(
+    WidgetTester tester,
+    EntryMode mode, {
+    bool largeText = false,
+  }) async {
+    Widget launcher = Scaffold(
+      body: Builder(
+        builder: (context) => Center(
+          child: FilledButton(
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (_) => AddTransactionSheet(initialMode: mode),
+            ),
+            child: const Text('Open entry'),
+          ),
+        ),
+      ),
+    );
+    if (largeText) {
+      launcher = MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: launcher,
+      );
+    }
+    await tester.pumpWidget(app(launcher));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Open entry'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
+  Future<void> disposeApp(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+  }
 
   testWidgets('creates an account through the account dialog', (tester) async {
     await tester.pumpWidget(app(const AccountsScreen()));
@@ -159,7 +203,7 @@ void main() {
     expect(savedEntries.single.amountMinor, 8525);
     expect(savedEntries.single.accountId, 'account-cash');
     expect(savedEntries.single.categoryId, isNotEmpty);
-    await tester.tap(find.text('Undo'));
+    tester.widget<SnackBarAction>(find.byType(SnackBarAction)).onPressed();
     await tester.pump();
     final remaining = await tester.runAsync(
       () => database.select(database.ledgerTransactions).get(),
@@ -172,6 +216,66 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('saves and can undo income through the redesigned flow', (
+    tester,
+  ) async {
+    await openEntrySheet(tester, EntryMode.income);
+    await tester.enterText(find.widgetWithText(TextField, '0.00'), '5000');
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm income'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final entries = await database.select(database.ledgerTransactions).get();
+    expect(entries.single.type, 'income');
+    expect(entries.single.amountMinor, 500000);
+    expect(find.text('Income added'), findsOneWidget);
+    tester.widget<SnackBarAction>(find.byType(SnackBarAction)).onPressed();
+    await tester.pump();
+    expect(await database.select(database.ledgerTransactions).get(), isEmpty);
+    await disposeApp(tester);
+  });
+
+  testWidgets('transfer flow supports account swap and Undo', (tester) async {
+    await openEntrySheet(tester, EntryMode.transfer);
+    await tester.enterText(find.widgetWithText(TextField, '0.00'), '250');
+    await tester.tap(find.byTooltip('Swap accounts'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm transfer'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final transfers = await database.select(database.transfers).get();
+    expect(transfers.single.fromAccountId, 'account-bank');
+    expect(transfers.single.toAccountId, 'account-cash');
+    expect(find.text('Transfer added'), findsOneWidget);
+    tester.widget<SnackBarAction>(find.byType(SnackBarAction)).onPressed();
+    await tester.pump();
+    expect(await database.select(database.transfers).get(), isEmpty);
+    await disposeApp(tester);
+  });
+
+  testWidgets('transaction flow fits a narrow screen at 200 percent text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await openEntrySheet(tester, EntryMode.expense, largeText: true);
+
+    expect(find.text('Add transaction'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.enterText(find.widgetWithText(TextField, '0.00'), '20');
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Expense details'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await disposeApp(tester);
+  });
+
   testWidgets('Plan hub exposes upcoming, budgets, and savings', (
     tester,
   ) async {
@@ -181,6 +285,11 @@ void main() {
     expect(find.text('Upcoming activity'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Budgets'), 180);
     expect(find.text('Budgets'), findsOneWidget);
+    await tester.tap(find.text('Budgets'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Savings goals'), 180);
     expect(find.text('Savings goals'), findsOneWidget);
     expect(tester.takeException(), isNull);

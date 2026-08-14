@@ -27,7 +27,7 @@ class TransactionsScreen extends ConsumerWidget {
             child: Row(
               children: [
                 Text(
-                  'Transactions',
+                  'Activity',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),

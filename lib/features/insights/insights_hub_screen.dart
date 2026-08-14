@@ -37,9 +37,9 @@ class InsightsHubScreen extends ConsumerWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
               color: WaveColors.primaryContainer.withValues(alpha: .6),
               borderRadius: BorderRadius.circular(22),
@@ -48,7 +48,7 @@ class InsightsHubScreen extends ConsumerWidget {
               children: [
                 Icon(
                   Icons.insights_rounded,
-                  size: 40,
+                  size: 34,
                   color: WaveColors.primaryStrong,
                 ),
                 SizedBox(width: 16),

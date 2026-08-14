@@ -15,28 +15,19 @@ class BudgetsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final month = ref.watch(selectedBudgetMonthProvider);
     final progress = ref.watch(budgetProgressProvider);
-    return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-            child: Row(
-              children: [
-                Text(
-                  'Budgets',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => _showBudgetDialog(context, ref),
-                  tooltip: 'Add budget',
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                ),
-              ],
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Budgets'),
+        actions: [
+          IconButton(
+            onPressed: () => _showBudgetDialog(context, ref),
+            tooltip: 'Add budget',
+            icon: const Icon(Icons.add_circle_outline_rounded),
           ),
+        ],
+      ),
+      body: Column(
+        children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Card(

@@ -18,17 +18,11 @@ class MoreScreen extends ConsumerWidget {
     final motionEnabled =
         ref.watch(appearanceProvider).gentleMotion &&
         !MediaQuery.disableAnimationsOf(context);
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Accounts and settings')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         children: [
-          Text(
-            'More',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 24),
           const _SectionLabel('Manage'),
           const SizedBox(height: 8),
           Card(

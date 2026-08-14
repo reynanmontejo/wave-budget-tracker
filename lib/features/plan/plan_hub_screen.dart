@@ -38,7 +38,7 @@ class PlanHubScreen extends ConsumerWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           const _PlanHero(),
           const SizedBox(height: 18),
           _PlanCard(
@@ -75,7 +75,7 @@ class _PlanHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
+    padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
         colors: [WaveColors.primaryStrong, WaveColors.primary],
@@ -85,10 +85,10 @@ class _PlanHero extends StatelessWidget {
     child: const Row(
       children: [
         CircleAvatar(
-          radius: 26,
+          radius: 22,
           backgroundColor: Colors.white24,
           foregroundColor: Colors.white,
-          child: Icon(Icons.waves_rounded, size: 30),
+          child: Icon(Icons.waves_rounded, size: 26),
         ),
         SizedBox(width: 16),
         Expanded(
@@ -100,7 +100,7 @@ class _PlanHero extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
-                  fontSize: 17,
+                  fontSize: 16,
                 ),
               ),
               SizedBox(height: 5),
@@ -135,8 +135,8 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
     child: ListTile(
-      minVerticalPadding: 18,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      minVerticalPadding: 12,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: accent.withValues(alpha: .13),
