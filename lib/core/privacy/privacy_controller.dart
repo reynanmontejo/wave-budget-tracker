@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,42 @@ import 'package:flutter/services.dart';
 
 import '../../data/database/app_database.dart';
 
+final class PrivacyLockoutException implements Exception {
+  const PrivacyLockoutException(this.remaining);
+  final Duration remaining;
+}
+
+abstract interface class PrivacyCredentialStore {
+  Future<String?> read(String key);
+  Future<void> write(String key, String value);
+  Future<void> delete(String key);
+  Future<bool> contains(String key);
+}
+
+final class SecurePrivacyCredentialStore implements PrivacyCredentialStore {
+  SecurePrivacyCredentialStore([FlutterSecureStorage? storage])
+    : _storage = storage ?? const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
+
+  @override
+  Future<String?> read(String key) => _storage.read(key: key);
+  @override
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
+  @override
+  Future<void> delete(String key) => _storage.delete(key: key);
+  @override
+  Future<bool> contains(String key) => _storage.containsKey(key: key);
+}
+
+String _derivePinDigest((String, List<int>, int) input) {
+  var bytes = <int>[...input.$2, ...utf8.encode(input.$1)];
+  for (var index = 0; index < input.$3; index++) {
+    bytes = sha256.convert(bytes).bytes;
+  }
+  return base64Encode(bytes);
+}
+
 final class PrivacyState {
   const PrivacyState({
     this.loaded = false,
@@ -17,6 +54,7 @@ final class PrivacyState {
     this.hideWhenBackgrounded = true,
     this.timeoutMinutes = 1,
     this.locked = false,
+    this.recoveryAvailable = false,
   });
   final bool loaded;
   final bool lockEnabled;
@@ -24,6 +62,7 @@ final class PrivacyState {
   final bool hideWhenBackgrounded;
   final int timeoutMinutes;
   final bool locked;
+  final bool recoveryAvailable;
 
   PrivacyState copyWith({
     bool? loaded,
@@ -32,6 +71,7 @@ final class PrivacyState {
     bool? hideWhenBackgrounded,
     int? timeoutMinutes,
     bool? locked,
+    bool? recoveryAvailable,
   }) => PrivacyState(
     loaded: loaded ?? this.loaded,
     lockEnabled: lockEnabled ?? this.lockEnabled,
@@ -39,27 +79,32 @@ final class PrivacyState {
     hideWhenBackgrounded: hideWhenBackgrounded ?? this.hideWhenBackgrounded,
     timeoutMinutes: timeoutMinutes ?? this.timeoutMinutes,
     locked: locked ?? this.locked,
+    recoveryAvailable: recoveryAvailable ?? this.recoveryAvailable,
   );
 }
 
 final class PrivacyController extends StateNotifier<PrivacyState> {
   PrivacyController(
     this.database, {
-    FlutterSecureStorage? storage,
+    PrivacyCredentialStore? storage,
     LocalAuthentication? authentication,
-  }) : storage = storage ?? const FlutterSecureStorage(),
+  }) : storage = storage ?? SecurePrivacyCredentialStore(),
        authentication = authentication ?? LocalAuthentication(),
        super(const PrivacyState()) {
     load();
   }
 
   final AppDatabase database;
-  final FlutterSecureStorage storage;
+  final PrivacyCredentialStore storage;
   final LocalAuthentication authentication;
   DateTime? _backgroundedAt;
   static const _pinKey = 'wave_pin_digest';
   static const _recoveryKey = 'wave_recovery_digest';
+  static const _failedAttemptsKey = 'wave_unlock_failed_attempts';
+  static const _retryAtKey = 'wave_unlock_retry_at';
+  static const _pinIterations = 20000;
   static const _privacyChannel = MethodChannel('wave/privacy');
+  String? lastBiometricError;
 
   Future<void> load() async {
     final enabled = await database.preference('privacy_lock_enabled') == 'true';
@@ -75,6 +120,7 @@ final class PrivacyController extends StateNotifier<PrivacyState> {
           await database.preference('privacy_hide_background') != 'false',
       timeoutMinutes: timeout ?? 1,
       locked: enabled,
+      recoveryAvailable: await storage.contains(_recoveryKey),
     );
     await _setNativeScreenProtection(state.hideWhenBackgrounded);
   }
@@ -83,62 +129,122 @@ final class PrivacyController extends StateNotifier<PrivacyState> {
     if (!RegExp(r'^\d{4,8}$').hasMatch(pin)) {
       throw const FormatException('PIN must contain 4 to 8 digits.');
     }
-    final salt = List<int>.generate(16, (_) => Random.secure().nextInt(256));
-    final digest = sha256.convert([...salt, ...utf8.encode(pin)]).toString();
-    await storage.write(key: _pinKey, value: '${base64Encode(salt)}:$digest');
-    final recoveryCode = _createRecoveryCode();
-    await storage.write(
-      key: _recoveryKey,
-      value: sha256.convert(utf8.encode(recoveryCode)).toString(),
-    );
+    await _storePin(pin);
+    final recoveryCode = await regenerateRecoveryCode();
     await database.setPreference('privacy_lock_enabled', 'true');
-    state = state.copyWith(lockEnabled: true, locked: false);
+    state = state.copyWith(
+      lockEnabled: true,
+      locked: false,
+      recoveryAvailable: true,
+    );
     return recoveryCode;
   }
 
   Future<bool> unlockWithRecoveryCode(String code) async {
-    final stored = await storage.read(key: _recoveryKey);
-    if (stored == null) return false;
+    await _enforceAttemptDelay();
+    final stored = await storage.read(_recoveryKey);
+    if (stored == null) {
+      await _recordFailedAttempt();
+      return false;
+    }
     final normalized = code.replaceAll('-', '').trim().toUpperCase();
     final digest = sha256.convert(utf8.encode(normalized)).toString();
-    if (digest != stored) return false;
+    if (!_constantTimeEquals(digest, stored)) {
+      await _recordFailedAttempt();
+      return false;
+    }
+    await _clearFailedAttempts();
     state = state.copyWith(locked: false);
     return true;
+  }
+
+  Future<String> regenerateRecoveryCode() async {
+    final recoveryCode = _createRecoveryCode();
+    await storage.write(
+      _recoveryKey,
+      sha256.convert(utf8.encode(recoveryCode)).toString(),
+    );
+    state = state.copyWith(recoveryAvailable: true);
+    return recoveryCode;
   }
 
   Future<bool> unlockWithPin(String pin) async {
-    final stored = await storage.read(key: _pinKey);
-    if (stored == null) return false;
+    await _enforceAttemptDelay();
+    final stored = await storage.read(_pinKey);
+    if (stored == null) {
+      await _recordFailedAttempt();
+      return false;
+    }
     final parts = stored.split(':');
-    if (parts.length != 2) return false;
-    final digest = sha256.convert([
-      ...base64Decode(parts.first),
-      ...utf8.encode(pin),
-    ]).toString();
-    if (digest != parts.last) return false;
+    var matches = false;
+    var legacy = false;
+    if (parts.length == 4 && parts.first == 'v2') {
+      final iterations = int.tryParse(parts[1]);
+      if (iterations != null) {
+        final digest = await Isolate.run(
+          () => _derivePinDigest((pin, base64Decode(parts[2]), iterations)),
+        );
+        matches = _constantTimeEquals(digest, parts[3]);
+      }
+    } else if (parts.length == 2) {
+      legacy = true;
+      final digest = sha256.convert([
+        ...base64Decode(parts.first),
+        ...utf8.encode(pin),
+      ]).toString();
+      matches = _constantTimeEquals(digest, parts.last);
+    }
+    if (!matches) {
+      await _recordFailedAttempt();
+      return false;
+    }
+    await _clearFailedAttempts();
+    if (legacy) await _storePin(pin);
     state = state.copyWith(locked: false);
     return true;
   }
 
+  Future<String> changePin({
+    required String currentPin,
+    required String newPin,
+  }) async {
+    if (!await unlockWithPin(currentPin)) {
+      throw StateError('Current PIN is incorrect.');
+    }
+    return setPin(newPin);
+  }
+
   Future<bool> unlockWithBiometrics() async {
+    lastBiometricError = null;
     try {
       final success = await authentication.authenticate(
         localizedReason: 'Unlock your Wave budget',
         biometricOnly: true,
       );
-      if (success) state = state.copyWith(locked: false);
+      if (success) {
+        await _clearFailedAttempts();
+        state = state.copyWith(locked: false);
+      } else {
+        lastBiometricError = 'Biometric authentication was not completed.';
+      }
       return success;
-    } catch (_) {
+    } catch (error) {
+      lastBiometricError = 'Biometric unlock is unavailable: $error';
       return false;
     }
   }
 
   Future<void> disableLock() async {
-    await storage.delete(key: _pinKey);
-    await storage.delete(key: _recoveryKey);
+    await storage.delete(_pinKey);
+    await storage.delete(_recoveryKey);
+    await _clearFailedAttempts();
     await database.setPreference('privacy_lock_enabled', 'false');
     await setBiometrics(false);
-    state = state.copyWith(lockEnabled: false, locked: false);
+    state = state.copyWith(
+      lockEnabled: false,
+      locked: false,
+      recoveryAvailable: false,
+    );
   }
 
   Future<void> setBiometrics(bool enabled) async {
@@ -174,6 +280,60 @@ final class PrivacyController extends StateNotifier<PrivacyState> {
       (_) => alphabet[random.nextInt(alphabet.length)],
     ).join();
     return raw;
+  }
+
+  Future<void> _storePin(String pin) async {
+    final salt = List<int>.generate(16, (_) => Random.secure().nextInt(256));
+    final digest = await Isolate.run(
+      () => _derivePinDigest((pin, salt, _pinIterations)),
+    );
+    await storage.write(
+      _pinKey,
+      'v2:$_pinIterations:${base64Encode(salt)}:$digest',
+    );
+  }
+
+  Future<void> _enforceAttemptDelay() async {
+    final raw = await storage.read(_retryAtKey);
+    final retryAt = raw == null ? null : DateTime.tryParse(raw);
+    if (retryAt == null) return;
+    final remaining = retryAt.difference(DateTime.now().toUtc());
+    if (remaining > Duration.zero) {
+      throw PrivacyLockoutException(remaining);
+    }
+    await storage.delete(_retryAtKey);
+  }
+
+  Future<void> _recordFailedAttempt() async {
+    final failures =
+        (int.tryParse(await storage.read(_failedAttemptsKey) ?? '') ?? 0) + 1;
+    await storage.write(_failedAttemptsKey, failures.toString());
+    final delay = switch (failures) {
+      >= 8 => const Duration(minutes: 5),
+      >= 6 => const Duration(minutes: 1),
+      >= 4 => const Duration(seconds: 15),
+      _ => Duration.zero,
+    };
+    if (delay > Duration.zero) {
+      await storage.write(
+        _retryAtKey,
+        DateTime.now().toUtc().add(delay).toIso8601String(),
+      );
+    }
+  }
+
+  Future<void> _clearFailedAttempts() async {
+    await storage.delete(_failedAttemptsKey);
+    await storage.delete(_retryAtKey);
+  }
+
+  bool _constantTimeEquals(String left, String right) {
+    if (left.length != right.length) return false;
+    var difference = 0;
+    for (var index = 0; index < left.length; index++) {
+      difference |= left.codeUnitAt(index) ^ right.codeUnitAt(index);
+    }
+    return difference == 0;
   }
 
   Future<void> _setNativeScreenProtection(bool enabled) async {

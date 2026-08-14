@@ -4,7 +4,9 @@
 
 Wave helps you understand where your money goes without requiring an account, an internet connection, or access to your bank. Record expenses and income, move money between your own accounts, set monthly budgets, and review spending trends—all while keeping your financial records on your device.
 
-> Wave is currently an offline MVP under active development. Android device verification and release packaging are the final major steps.
+> Wave is currently an offline release candidate. Automated verification and Android packaging are complete; physical-device verification is still required.
+
+[Download the latest Android release](https://github.com/reynanmontejo/wave-budget-tracker/releases/latest)
 
 ## Why Wave?
 
@@ -56,6 +58,17 @@ Personal finance tools often require cloud accounts, subscriptions, or bank acce
 - Atomic full-database restore
 - CSV transaction export
 - In-app backup history
+- Password-encrypted backups with integrity verification
+- PIN lock, recovery code, biometric unlock, and Android screen protection
+- Weekly local backup reminders
+
+### Planning and savings
+
+- Savings goals with contribution history
+- One-time and recurring future income or expenses
+- Optional automatic posting when Wave opens
+- Device-local reminders and cash-flow forecasts
+- Estimated safe-to-spend guidance
 
 ### First launch
 
@@ -153,13 +166,16 @@ Drift's generated database file is committed so the project can be analyzed imme
 ## Testing status
 
 - Static analysis: clean
-- Automated tests: 31 passing
+- Automated tests: 67 passing
 - Ledger and transfer calculations: covered
 - Budget period isolation: covered
 - Backup round-trip and malformed-backup rejection: covered
 - Onboarding and preference persistence: covered
+- Version 1 database upgrade preservation: covered
+- 5,000-entry ledger queries: covered
+- Narrow-screen account flow at 200% text: covered
+- Android APK/AAB release-candidate build: complete
 - Android emulator and physical-device verification: pending
-- Signed APK/AAB build: pending
 - iOS build verification: pending
 
 ## Backup behavior
@@ -176,6 +192,8 @@ The JSON format contains:
 - Transactions
 - Transfers
 - Budgets
+- Savings goals and contributions
+- Planned and recurring transactions
 
 Restore validates the complete file and its relationships before replacing live data. The replacement runs inside a single database transaction.
 
@@ -194,9 +212,8 @@ Wave currently supports one reporting currency, PHP. The following are intention
 
 - Complete Android SDK and device verification
 - Resolve issues found during hands-on testing
-- Screen-reader and large-text validation
-- Signed Android APK/AAB packaging
-- Backup sharing through the operating-system share sheet
+- Complete screen-reader and device-level accessibility validation
+- Configure production signing for a future store release
 - iOS build and splash-screen verification
 
 ## Privacy

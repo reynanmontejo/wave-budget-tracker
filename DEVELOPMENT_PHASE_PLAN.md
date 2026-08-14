@@ -294,7 +294,25 @@ flowchart LR
 
 Phases 2, 3, and 4 can be developed independently after Phase 0. The full Phase 5 experience depends on themes, savings goals, and planned activity.
 
+## Phase 12 — Automated release hardening
+
+Goal: cover release risks that can be verified without a physical device.
+
+Deliverables:
+
+- Version 1 to current-schema migration preservation test
+- Large-ledger dashboard, balance, report, and activity query check
+- Narrow-phone and 200% text-scale coverage for the critical account flow
+- Responsive account cards and dropdown fields
+- Full static analysis and automated regression suite
+
+Exit criteria:
+
+- Legacy account and transaction data survives migration
+- Core queries complete with at least 5,000 ledger entries
+- The tested critical flow has no render overflow at 320 px width and 200% text
+- Static analysis and all automated tests pass
+
 ## Recommended immediate next phase
 
 Start with Phase 0. The recent account and transaction initialization defect showed that critical workflows need widget and update-path coverage before schema expansion. After Phase 0 exits cleanly, implement the existing-data dashboard cards in Phase 1 while finalizing the savings and scheduled-transaction schemas.
-

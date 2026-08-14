@@ -4,6 +4,9 @@
 
 - [x] Flutter static analysis
 - [x] Unit, repository, and widget tests
+- [x] Version 1 database migration preserves accounts and transactions
+- [x] Dashboard and activity queries complete with a 5,000-entry ledger
+- [x] Narrow-screen account flow supports 200% text scaling
 - [x] Release APK build (development/debug signed release candidate)
 - [x] Release AAB build (development/debug signed release candidate)
 

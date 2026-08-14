@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
+import '../../core/privacy/privacy_controller.dart';
 
 class AppLockGate extends ConsumerStatefulWidget {
   const AppLockGate({required this.child, super.key});
@@ -47,31 +48,112 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
 
   Future<void> _processDueAutoPosts() async {
     try {
-      final posted = await ref
+      final report = await ref
           .read(scheduleRepositoryProvider)
-          .processDueAutoPosts();
-      if (posted == 0 || !mounted) return;
-      ref.invalidate(activityEntriesProvider);
-      ref.invalidate(transactionEntriesProvider);
-      ref.invalidate(accountBalancesProvider);
-      ref.invalidate(totalsProvider);
-      ref.invalidate(scheduleForecastProvider);
-      ref.invalidate(cashFlowInsightProvider);
-      ref.invalidate(dashboardMetricsProvider);
+          .processDueAutoPostsDetailed();
+      if (!mounted) return;
+      if (report.posted > 0) {
+        ref.invalidate(activityEntriesProvider);
+        ref.invalidate(transactionEntriesProvider);
+        ref.invalidate(accountBalancesProvider);
+        ref.invalidate(totalsProvider);
+        ref.invalidate(scheduleForecastProvider);
+        ref.invalidate(cashFlowInsightProvider);
+        ref.invalidate(dashboardMetricsProvider);
+      }
+      if (report.posted > 0 || report.failures.isNotEmpty) {
+        final parts = <String>[
+          if (report.posted > 0)
+            '${report.posted} planned item(s) posted when Wave opened.',
+          if (report.failures.isNotEmpty)
+            '${report.failures.length} item(s) could not be posted. Review Upcoming.',
+        ];
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(parts.join(' '))));
+      }
     } catch (_) {
       // A resume-time refresh must never prevent the app from unlocking.
     }
   }
 
   Future<void> _unlock() async {
-    final success = await ref
-        .read(privacyProvider.notifier)
-        .unlockWithPin(_pin.text);
+    var success = false;
+    try {
+      success = await ref
+          .read(privacyProvider.notifier)
+          .unlockWithPin(_pin.text);
+    } on PrivacyLockoutException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = _lockoutMessage(error.remaining));
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _error = success ? null : 'Incorrect PIN';
       if (success) _pin.clear();
     });
+    if (success) await _offerRecoveryMigration();
+  }
+
+  Future<void> _unlockWithBiometrics() async {
+    final controller = ref.read(privacyProvider.notifier);
+    final success = await controller.unlockWithBiometrics();
+    if (!success && mounted) {
+      setState(() {
+        _error = controller.lastBiometricError ?? 'Biometric unlock failed.';
+      });
+    }
+    if (success && mounted) await _offerRecoveryMigration();
+  }
+
+  Future<void> _offerRecoveryMigration() async {
+    if (ref.read(privacyProvider).recoveryAvailable || !mounted) return;
+    final create = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Recovery code required'),
+        content: const Text(
+          'This PIN was created by an earlier Wave version. Create and save a recovery code so a forgotten PIN cannot permanently block your data.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Create recovery code'),
+          ),
+        ],
+      ),
+    );
+    if (create != true || !mounted) return;
+    final code = await ref
+        .read(privacyProvider.notifier)
+        .regenerateRecoveryCode();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Save your recovery code'),
+        content: SelectableText(
+          code
+              .replaceAllMapped(
+                RegExp(r'.{4}'),
+                (match) => '${match.group(0)}-',
+              )
+              .replaceFirst(RegExp(r'-$'), ''),
+          style: Theme.of(
+            dialogContext,
+          ).textTheme.titleLarge?.copyWith(letterSpacing: 2),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('I saved it'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _recover() async {
@@ -100,9 +182,16 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     );
     recovery.dispose();
     if (code == null || !mounted) return;
-    final success = await ref
-        .read(privacyProvider.notifier)
-        .unlockWithRecoveryCode(code);
+    var success = false;
+    try {
+      success = await ref
+          .read(privacyProvider.notifier)
+          .unlockWithRecoveryCode(code);
+    } on PrivacyLockoutException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = _lockoutMessage(error.remaining));
+      return;
+    }
     if (!mounted) return;
     setState(() => _error = success ? null : 'Invalid recovery code');
     if (success) {
@@ -112,6 +201,14 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         ),
       );
     }
+  }
+
+  String _lockoutMessage(Duration remaining) {
+    final seconds = remaining.inSeconds + 1;
+    if (seconds >= 60) {
+      return 'Too many attempts. Try again in ${(seconds / 60).ceil()} minute(s).';
+    }
+    return 'Too many attempts. Try again in $seconds seconds.';
   }
 
   @override
@@ -166,18 +263,17 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
                                 onPressed: _unlock,
                                 child: const Text('Unlock'),
                               ),
-                              TextButton(
-                                onPressed: _recover,
-                                child: const Text(
-                                  'Forgot PIN? Use recovery code',
+                              if (privacy.recoveryAvailable)
+                                TextButton(
+                                  onPressed: _recover,
+                                  child: const Text(
+                                    'Forgot PIN? Use recovery code',
+                                  ),
                                 ),
-                              ),
                               if (privacy.biometricEnabled) ...[
                                 const SizedBox(height: 8),
                                 TextButton.icon(
-                                  onPressed: () => ref
-                                      .read(privacyProvider.notifier)
-                                      .unlockWithBiometrics(),
+                                  onPressed: _unlockWithBiometrics,
                                   icon: const Icon(Icons.fingerprint),
                                   label: const Text('Use biometrics'),
                                 ),

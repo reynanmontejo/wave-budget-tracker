@@ -130,6 +130,48 @@ void main() {
     expect(() => backups.restore(backup.file), throwsFormatException);
   });
 
+  test(
+    'encrypted backup verifies and restores only with its password',
+    () async {
+      final ledger = LedgerRepository(database);
+      await ledger.createEntry(
+        type: LedgerEntryType.expense,
+        amountMinor: 12500,
+        accountId: 'account-cash',
+        categoryId: 'category-food',
+        occurredAt: DateTime(2026, 8, 14),
+        note: 'Private purchase',
+      );
+      final encrypted = await backups.createJsonBackup(
+        password: 'correct horse battery staple',
+      );
+      final raw = await encrypted.file.readAsString();
+      expect(raw, isNot(contains('Private purchase')));
+
+      final verification = await backups.verify(
+        encrypted.file,
+        password: 'correct horse battery staple',
+      );
+      expect(verification.encrypted, isTrue);
+      expect(verification.transactions, 1);
+      await expectLater(
+        backups.restore(encrypted.file, password: 'incorrect password'),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        await database.select(database.ledgerTransactions).get(),
+        hasLength(1),
+      );
+    },
+  );
+
+  test('encrypted backup requires a sufficiently long password', () async {
+    await expectLater(
+      backups.createJsonBackup(password: 'short'),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
   test('CSV export escapes notes containing commas and quotes', () async {
     await LedgerRepository(database).createEntry(
       type: LedgerEntryType.expense,
@@ -142,5 +184,30 @@ void main() {
     final export = await backups.exportCsv();
     final contents = await export.file.readAsString();
     expect(contents, contains('"Lunch, ""special"""'));
+  });
+
+  test('CSV export includes transfers and savings records', () async {
+    await LedgerRepository(database).createTransfer(
+      amountMinor: 5000,
+      fromAccountId: 'account-cash',
+      toAccountId: 'account-bank',
+      occurredAt: DateTime(2026, 8, 14),
+    );
+    final savings = SavingsRepository(database);
+    final goalId = await savings.createGoal(
+      name: 'Emergency fund',
+      targetMinor: 100000,
+    );
+    await savings.addContribution(
+      goalId: goalId,
+      amountMinor: 10000,
+      occurredAt: DateTime(2026, 8, 14),
+    );
+
+    final export = await backups.exportCsv();
+    final contents = await export.file.readAsString();
+    expect(contents, contains('transfer'));
+    expect(contents, contains('savings_goal'));
+    expect(contents, contains('savings_contribution'));
   });
 }

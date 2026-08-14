@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart' hide Hash;
 
 import 'database/app_database.dart';
 
@@ -37,12 +39,38 @@ final class RestoreSummary {
   final int savingsGoals;
 }
 
+final class BackupVerification {
+  const BackupVerification({
+    required this.exportedAt,
+    required this.schemaVersion,
+    required this.encrypted,
+    required this.accounts,
+    required this.transactions,
+    required this.transfers,
+    required this.budgets,
+    required this.schedules,
+    required this.savingsGoals,
+    required this.savingsContributions,
+  });
+  final DateTime? exportedAt;
+  final int schemaVersion;
+  final bool encrypted;
+  final int accounts;
+  final int transactions;
+  final int transfers;
+  final int budgets;
+  final int schedules;
+  final int savingsGoals;
+  final int savingsContributions;
+}
+
 final class BackupService {
   BackupService(this.database, {DirectoryProvider? directoryProvider})
     : _directoryProvider =
           directoryProvider ?? getApplicationDocumentsDirectory;
 
   static const format = 'wave-budget-backup';
+  static const encryptedFormat = 'wave-budget-backup-encrypted';
   static const schemaVersion = 4;
 
   final AppDatabase database;
@@ -57,7 +85,7 @@ final class BackupService {
     return directory;
   }
 
-  Future<BackupInfo> createJsonBackup() async {
+  Future<BackupInfo> createJsonBackup({String? password}) async {
     final now = DateTime.now();
     final data = <String, dynamic>{
       'accounts': (await database.select(database.accounts).get())
@@ -101,12 +129,21 @@ final class BackupService {
     };
     final directory = await backupDirectory();
     final stamp = DateFormat('yyyyMMdd-HHmmss').format(now);
+    final encrypted = password != null && password.isNotEmpty;
+    if (encrypted && password.length < 8) {
+      throw const FormatException(
+        'Backup password must contain at least 8 characters.',
+      );
+    }
     final file = File(
-      '${directory.path}${Platform.pathSeparator}wave-backup-$stamp.json',
+      '${directory.path}${Platform.pathSeparator}wave-backup-$stamp${encrypted ? '-encrypted' : ''}.json',
     );
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(payload),
-      flush: true,
+    final output = encrypted
+        ? await _encryptPayload(payload, password)
+        : payload;
+    await _writeAtomically(
+      file,
+      const JsonEncoder.withIndent('  ').convert(output),
     );
     final stat = await file.stat();
     return BackupInfo(
@@ -131,6 +168,12 @@ final class BackupService {
     final schedules = await database
         .select(database.scheduledTransactions)
         .get();
+    final transfers = await database.select(database.transfers).get();
+    final goals = await database.select(database.savingsGoals).get();
+    final contributions = await database
+        .select(database.savingsContributions)
+        .get();
+    final goalNames = {for (final item in goals) item.id: item.name};
     final buffer = StringBuffer(
       'record_kind,id,type,amount_minor,currency,account,category,occurred_or_due_at,note,recurrence,status\r\n',
     );
@@ -170,13 +213,66 @@ final class BackupService {
         ].map(_csvCell).join(','),
       );
     }
+    for (final item in transfers) {
+      buffer.writeln(
+        [
+          'transfer',
+          item.id,
+          'transfer',
+          item.amountMinor,
+          'PHP',
+          '${accounts[item.fromAccountId] ?? item.fromAccountId} -> ${accounts[item.toAccountId] ?? item.toAccountId}',
+          '',
+          item.occurredAt.toIso8601String(),
+          item.note ?? '',
+          '',
+          'posted',
+        ].map(_csvCell).join(','),
+      );
+    }
+    for (final item in goals) {
+      buffer.writeln(
+        [
+          'savings_goal',
+          item.id,
+          'goal',
+          item.targetMinor,
+          'PHP',
+          item.linkedAccountId == null
+              ? ''
+              : accounts[item.linkedAccountId] ?? item.linkedAccountId!,
+          '',
+          item.targetDate?.toIso8601String() ?? '',
+          item.name,
+          '',
+          item.status,
+        ].map(_csvCell).join(','),
+      );
+    }
+    for (final item in contributions) {
+      buffer.writeln(
+        [
+          'savings_contribution',
+          item.id,
+          'contribution',
+          item.amountMinor,
+          'PHP',
+          '',
+          goalNames[item.goalId] ?? item.goalId,
+          item.occurredAt.toIso8601String(),
+          item.note ?? '',
+          '',
+          item.reversedAt == null ? 'active' : 'reversed',
+        ].map(_csvCell).join(','),
+      );
+    }
     final now = DateTime.now();
     final directory = await backupDirectory();
     final stamp = DateFormat('yyyyMMdd-HHmmss').format(now);
     final file = File(
       '${directory.path}${Platform.pathSeparator}wave-transactions-$stamp.csv',
     );
-    await file.writeAsString(buffer.toString(), flush: true);
+    await _writeAtomically(file, buffer.toString());
     final stat = await file.stat();
     return BackupInfo(
       file: file,
@@ -204,11 +300,13 @@ final class BackupService {
     return result;
   }
 
-  Future<RestoreSummary> restore(File file) async {
-    final decoded = jsonDecode(await file.readAsString());
-    if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Backup root must be an object.');
-    }
+  Future<bool> isEncrypted(File file) async {
+    final root = jsonDecode(await file.readAsString());
+    return root is Map<String, dynamic> && root['format'] == encryptedFormat;
+  }
+
+  Future<RestoreSummary> restore(File file, {String? password}) async {
+    final decoded = await _readPayload(file, password: password);
     if (decoded['format'] != format) {
       throw const FormatException('This is not a Wave backup.');
     }
@@ -329,6 +427,162 @@ final class BackupService {
       schedules: schedules.length,
       savingsGoals: goals.length,
     );
+  }
+
+  Future<BackupVerification> verify(File file, {String? password}) async {
+    final decoded = await _readPayload(file, password: password);
+    if (decoded['format'] != format) {
+      throw const FormatException('This is not a Wave backup.');
+    }
+    final version = decoded['schemaVersion'];
+    final data = decoded['data'];
+    if (version is! int || data is! Map<String, dynamic>) {
+      throw const FormatException('Backup metadata or data is missing.');
+    }
+    final checksum = decoded['checksum'];
+    if (version == schemaVersion &&
+        (checksum is! String || checksum != _checksum(data))) {
+      throw const FormatException('Backup checksum does not match.');
+    }
+    final accounts = _decodeList(data, 'accounts', Account.fromJson);
+    final categories = _decodeList(data, 'categories', Category.fromJson);
+    final transactions = _decodeList(
+      data,
+      'transactions',
+      LedgerTransaction.fromJson,
+    );
+    final transfers = _decodeList(data, 'transfers', Transfer.fromJson);
+    final budgets = _decodeList(data, 'budgets', Budget.fromJson);
+    final schedules = version == 1
+        ? <ScheduledTransaction>[]
+        : _decodeList(
+            data,
+            'scheduledTransactions',
+            ScheduledTransaction.fromJson,
+          );
+    final occurrences = version == 1
+        ? <ScheduledOccurrence>[]
+        : _decodeList(
+            data,
+            'scheduledOccurrences',
+            ScheduledOccurrence.fromJson,
+          );
+    final goals = version < 3
+        ? <SavingsGoal>[]
+        : _decodeList(data, 'savingsGoals', SavingsGoal.fromJson);
+    final contributions = version < 3
+        ? <SavingsContribution>[]
+        : _decodeList(
+            data,
+            'savingsContributions',
+            SavingsContribution.fromJson,
+          );
+    _validateReferences(
+      accounts,
+      categories,
+      transactions,
+      transfers,
+      budgets,
+      schedules,
+      occurrences,
+      goals,
+      contributions,
+    );
+
+    return BackupVerification(
+      exportedAt: DateTime.tryParse(decoded['exportedAt']?.toString() ?? ''),
+      schemaVersion: version,
+      encrypted:
+          jsonDecode(await file.readAsString())['format'] == encryptedFormat,
+      accounts: accounts.length,
+      transactions: transactions.length,
+      transfers: transfers.length,
+      budgets: budgets.length,
+      schedules: schedules.length,
+      savingsGoals: goals.length,
+      savingsContributions: contributions.length,
+    );
+  }
+
+  Future<Map<String, dynamic>> _readPayload(
+    File file, {
+    String? password,
+  }) async {
+    final root = jsonDecode(await file.readAsString());
+    if (root is! Map<String, dynamic>) {
+      throw const FormatException('Backup root must be an object.');
+    }
+    if (root['format'] != encryptedFormat) return root;
+    if (password == null || password.isEmpty) {
+      throw const FormatException('This backup requires a password.');
+    }
+    try {
+      final salt = base64Decode(root['salt'] as String);
+      final secretKey = await _backupKdf().deriveKeyFromPassword(
+        password: password,
+        nonce: salt,
+      );
+      final box = SecretBox(
+        base64Decode(root['cipherText'] as String),
+        nonce: base64Decode(root['nonce'] as String),
+        mac: Mac(base64Decode(root['mac'] as String)),
+      );
+      final clearBytes = await AesGcm.with256bits().decrypt(
+        box,
+        secretKey: secretKey,
+      );
+      final decoded = jsonDecode(utf8.decode(clearBytes));
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Decrypted backup is invalid.');
+      }
+      return decoded;
+    } catch (error) {
+      if (error is FormatException) rethrow;
+      throw const FormatException('Incorrect password or damaged backup.');
+    }
+  }
+
+  Future<Map<String, dynamic>> _encryptPayload(
+    Map<String, dynamic> payload,
+    String password,
+  ) async {
+    final random = Random.secure();
+    final salt = List<int>.generate(16, (_) => random.nextInt(256));
+    final secretKey = await _backupKdf().deriveKeyFromPassword(
+      password: password,
+      nonce: salt,
+    );
+    final box = await AesGcm.with256bits().encrypt(
+      utf8.encode(jsonEncode(payload)),
+      secretKey: secretKey,
+    );
+    return {
+      'format': encryptedFormat,
+      'encryption': 'AES-256-GCM',
+      'kdf': 'Argon2id',
+      'salt': base64Encode(salt),
+      'nonce': base64Encode(box.nonce),
+      'cipherText': base64Encode(box.cipherText),
+      'mac': base64Encode(box.mac.bytes),
+    };
+  }
+
+  Argon2id _backupKdf() => Argon2id(
+    memory: 16 * 1000,
+    parallelism: 2,
+    iterations: 2,
+    hashLength: 32,
+  );
+
+  Future<void> _writeAtomically(File destination, String contents) async {
+    final temporary = File('${destination.path}.partial');
+    try {
+      await temporary.writeAsString(contents, flush: true);
+      if (await destination.exists()) await destination.delete();
+      await temporary.rename(destination.path);
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
   }
 
   static String _checksum(Map<String, dynamic> data) =>

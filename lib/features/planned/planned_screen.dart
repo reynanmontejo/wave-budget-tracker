@@ -16,7 +16,35 @@ class PlannedScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final schedules = ref.watch(scheduledTransactionsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Upcoming')),
+      appBar: AppBar(
+        title: const Text('Upcoming'),
+        actions: [
+          IconButton(
+            tooltip: 'Test notification',
+            onPressed: () async {
+              try {
+                final shown = await ref
+                    .read(scheduleRepositoryProvider)
+                    .showTestNotification();
+                if (context.mounted && !shown) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Notification permission was not granted.'),
+                    ),
+                  );
+                }
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Test notification failed: $error')),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.notifications_active_outlined),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showModalBottomSheet<void>(
           context: context,
@@ -234,6 +262,29 @@ class _ScheduleCard extends ConsumerWidget {
                 ),
               ],
             ),
+            if (item.reminderEnabled || item.autoPost) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 6,
+                  children: [
+                    if (item.reminderEnabled)
+                      const Chip(
+                        avatar: Icon(Icons.notifications_outlined, size: 16),
+                        label: Text('Reminder active'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    if (item.autoPost)
+                      const Chip(
+                        avatar: Icon(Icons.bolt_outlined, size: 16),
+                        label: Text('Posts when Wave opens'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

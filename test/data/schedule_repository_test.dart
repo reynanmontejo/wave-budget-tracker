@@ -1,9 +1,36 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wave/core/period/expense_period.dart';
 import 'package:wave/data/database/app_database.dart';
 import 'package:wave/data/database/seed_data.dart';
 import 'package:wave/data/schedule_repository.dart';
+import 'package:wave/data/schedule_notification_service.dart';
+
+final class _FakeNotifications implements ScheduleNotificationGateway {
+  var cancelAllCalls = 0;
+  final synced = <String>[];
+
+  @override
+  Future<void> cancel(String scheduleId) async {}
+
+  @override
+  Future<void> cancelAll() async => cancelAllCalls++;
+
+  @override
+  Future<void> scheduleBackupReminder(bool enabled) async {}
+
+  @override
+  Future<void> showTestNotification() async {}
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> sync(ScheduledTransaction schedule) async {
+    synced.add(schedule.id);
+  }
+}
 
 void main() {
   late AppDatabase database;
@@ -34,6 +61,68 @@ void main() {
         .balanceMinor;
     expect(totals.expenseMinor, 0);
     expect(balance, 0);
+  });
+
+  test(
+    'notification reconciliation cancels then syncs all schedules',
+    () async {
+      final notifications = _FakeNotifications();
+      final notifiedRepository = ScheduleRepository(
+        database,
+        notifications: notifications,
+      );
+      final id = await notifiedRepository.create(
+        type: 'expense',
+        amountMinor: 45000,
+        accountId: 'account-cash',
+        categoryId: 'category-food',
+        nextDueAt: DateTime(2026, 9, 1),
+        reminderEnabled: true,
+      );
+      notifications.synced.clear();
+
+      await notifiedRepository.cancelAllNotifications();
+      await notifiedRepository.syncAllNotifications();
+
+      expect(notifications.cancelAllCalls, 1);
+      expect(notifications.synced, [id]);
+    },
+  );
+
+  test('auto-post reports invalid plans without blocking valid ones', () async {
+    await repository.create(
+      type: 'income',
+      amountMinor: 100000,
+      accountId: 'account-cash',
+      categoryId: 'category-salary',
+      nextDueAt: DateTime(2026, 8, 14),
+      note: 'Salary',
+      autoPost: true,
+    );
+    await repository.create(
+      type: 'expense',
+      amountMinor: 25000,
+      accountId: 'account-bank',
+      categoryId: 'category-food',
+      nextDueAt: DateTime(2026, 8, 14),
+      note: 'Invalid bill',
+      autoPost: true,
+    );
+    await (database.update(database.accounts)
+          ..where((row) => row.id.equals('account-bank')))
+        .write(AccountsCompanion(archivedAt: Value(DateTime(2026, 8, 13))));
+
+    final report = await repository.processDueAutoPostsDetailed(
+      now: DateTime(2026, 8, 15),
+    );
+
+    expect(report.posted, 1);
+    expect(report.failures, hasLength(1));
+    expect(report.failures.single, contains('Invalid bill'));
+    final invalidPlan = await (database.select(
+      database.scheduledTransactions,
+    )..where((row) => row.note.equals('Invalid bill'))).getSingle();
+    expect(invalidPlan.autoPost, isFalse);
   });
 
   test(

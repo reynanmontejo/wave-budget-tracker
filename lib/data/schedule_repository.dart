@@ -10,6 +10,12 @@ enum ScheduleRecurrence { none, daily, weekly, monthly, yearly, custom }
 
 enum ScheduleStatus { active, paused, completed }
 
+final class AutoPostReport {
+  const AutoPostReport({required this.posted, required this.failures});
+  final int posted;
+  final List<String> failures;
+}
+
 final class ScheduleForecast {
   const ScheduleForecast({
     required this.incomeMinor,
@@ -65,6 +71,20 @@ final class ScheduleRepository {
         // One platform alarm must not prevent remaining reminders from syncing.
       }
     }
+  }
+
+  Future<void> cancelAllNotifications() => _notifications.cancelAll();
+
+  Future<bool> showTestNotification() async {
+    if (!await _notifications.requestPermission()) return false;
+    await _notifications.showTestNotification();
+    return true;
+  }
+
+  Future<bool> scheduleBackupReminder(bool enabled) async {
+    if (enabled && !await _notifications.requestPermission()) return false;
+    await _notifications.scheduleBackupReminder(enabled);
+    return true;
   }
 
   Future<String> create({
@@ -175,10 +195,20 @@ final class ScheduleRepository {
   Future<int> processDueAutoPosts({
     DateTime? now,
     int safetyLimit = 1000,
+  }) async => (await processDueAutoPostsDetailed(
+    now: now,
+    safetyLimit: safetyLimit,
+  )).posted;
+
+  Future<AutoPostReport> processDueAutoPostsDetailed({
+    DateTime? now,
+    int safetyLimit = 1000,
   }) async {
     final cutoff = now ?? DateTime.now();
     var posted = 0;
-    while (posted < safetyLimit) {
+    var handled = 0;
+    final failures = <String>[];
+    while (handled < safetyLimit) {
       final due =
           await (database.select(database.scheduledTransactions)
                 ..where(
@@ -191,20 +221,24 @@ final class ScheduleRepository {
                 ..limit(1))
               .getSingleOrNull();
       if (due == null) break;
+      handled++;
       try {
         await post(due.id, postedAt: due.nextDueAt);
         posted++;
-      } on ArgumentError {
+      } on ArgumentError catch (error) {
+        failures.add('${due.note ?? due.type}: ${error.message}');
         await _disableInvalidAutoPost(due.id);
-      } on StateError {
+      } on StateError catch (error) {
+        failures.add('${due.note ?? due.type}: ${error.message}');
         await _disableInvalidAutoPost(due.id);
-      } catch (_) {
+      } catch (error) {
+        failures.add('${due.note ?? due.type}: $error');
         // Keep auto-post enabled so a transient platform/database error can be
         // retried on the next launch or resume without blocking initialization.
         break;
       }
     }
-    return posted;
+    return AutoPostReport(posted: posted, failures: failures);
   }
 
   Future<void> _disableInvalidAutoPost(String scheduleId) =>

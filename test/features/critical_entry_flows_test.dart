@@ -68,6 +68,42 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets(
+    'account flow remains usable on a narrow screen with large text',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [databaseProvider.overrideWithValue(database)],
+          child: MaterialApp(
+            theme: WaveTheme.light,
+            home: const MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(2)),
+              child: AccountsScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.text('Add account'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'Account name'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Add'), findsOneWidget);
+      final layoutError = tester.takeException();
+      expect(
+        layoutError,
+        isNull,
+        reason: layoutError is FlutterError ? layoutError.toStringDeep() : null,
+      );
+    },
+  );
+
   testWidgets('saves an expense through the entry sheet', (tester) async {
     await tester.pumpWidget(
       app(

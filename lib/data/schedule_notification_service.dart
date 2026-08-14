@@ -9,6 +9,9 @@ abstract interface class ScheduleNotificationGateway {
   Future<bool> requestPermission();
   Future<void> sync(ScheduledTransaction schedule);
   Future<void> cancel(String scheduleId);
+  Future<void> cancelAll();
+  Future<void> showTestNotification();
+  Future<void> scheduleBackupReminder(bool enabled);
 }
 
 final class NoopScheduleNotificationGateway
@@ -23,6 +26,15 @@ final class NoopScheduleNotificationGateway
 
   @override
   Future<void> cancel(String scheduleId) async {}
+
+  @override
+  Future<void> cancelAll() async {}
+
+  @override
+  Future<void> showTestNotification() async {}
+
+  @override
+  Future<void> scheduleBackupReminder(bool enabled) async {}
 }
 
 final class DeviceScheduleNotificationService
@@ -34,6 +46,7 @@ final class DeviceScheduleNotificationService
   static const _channelName = 'Planned activity';
   static const _channelDescription =
       'Reminders for upcoming expenses and expected income.';
+  static const _backupReminderId = 0x57415645;
 
   final FlutterLocalNotificationsPlugin _plugin;
   Future<void>? _initialization;
@@ -122,6 +135,57 @@ final class DeviceScheduleNotificationService
   Future<void> cancel(String scheduleId) async {
     await initialize();
     await _plugin.cancel(id: notificationId(scheduleId));
+  }
+
+  @override
+  Future<void> cancelAll() async {
+    await initialize();
+    await _plugin.cancelAll();
+  }
+
+  @override
+  Future<void> showTestNotification() async {
+    await initialize();
+    await _plugin.show(
+      id: 0x57415644,
+      title: 'Wave reminders are working',
+      body: 'You will receive reminders for planned activity you enable.',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+    );
+  }
+
+  @override
+  Future<void> scheduleBackupReminder(bool enabled) async {
+    await initialize();
+    await _plugin.cancel(id: _backupReminderId);
+    if (!enabled) return;
+    final fireAt = tz.TZDateTime.now(tz.local).add(const Duration(days: 7));
+    await _plugin.zonedSchedule(
+      id: _backupReminderId,
+      title: 'Time to back up Wave',
+      body: 'Create and store a recent backup outside your phone.',
+      scheduledDate: fireAt,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDescription,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+      payload: 'backup-reminder',
+    );
   }
 
   static int notificationId(String scheduleId) {

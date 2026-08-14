@@ -91,6 +91,7 @@ class AccountsScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: type,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Type'),
                 items:
                     const ['Cash', 'Bank', 'E-wallet', 'Savings', 'Investment']
@@ -204,6 +205,7 @@ class AccountsScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: type,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Type'),
                 items:
                     const ['Cash', 'Bank', 'E-wallet', 'Savings', 'Investment']
@@ -313,41 +315,43 @@ class _AccountCard extends ConsumerWidget {
           summary.account.name,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        subtitle: Text(summary.account.typeName),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(summary.account.typeName),
+            const SizedBox(height: 4),
             Text(
               Money(summary.balanceMinor).format(),
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
-            PopupMenuButton<String>(
-              onSelected: (value) async {
-                if (value == 'edit') {
-                  onEdit();
-                  return;
-                }
-                if (value != 'archive') {
-                  return;
-                }
-                try {
-                  await ref
-                      .read(managementRepositoryProvider)
-                      .archiveAccount(summary.account.id);
-                  ref.invalidate(accountBalancesProvider);
-                } on StateError catch (error) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(error.message)));
-                  }
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('Edit')),
-                PopupMenuItem(value: 'archive', child: Text('Archive')),
-              ],
-            ),
+          ],
+        ),
+        trailing: PopupMenuButton<String>(
+          tooltip: 'Account actions',
+          onSelected: (value) async {
+            if (value == 'edit') {
+              onEdit();
+              return;
+            }
+            if (value != 'archive') {
+              return;
+            }
+            try {
+              await ref
+                  .read(managementRepositoryProvider)
+                  .archiveAccount(summary.account.id);
+              ref.invalidate(accountBalancesProvider);
+            } on StateError catch (error) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(error.message)));
+              }
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'edit', child: Text('Edit')),
+            PopupMenuItem(value: 'archive', child: Text('Archive')),
           ],
         ),
       ),
