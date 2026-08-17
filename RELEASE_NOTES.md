@@ -1,4 +1,4 @@
-# Wave 1.1.0 RC6
+# Wave 1.1.0 RC7
 
 Wave is an offline-first personal budget tracker for Android. Version 1.1.0 expands the original ledger with forward-looking planning and local privacy controls.
 
@@ -17,6 +17,11 @@ Wave is an offline-first personal budget tracker for Android. Version 1.1.0 expa
 - Correct back navigation for Budgets and Accounts and settings
 - Actual transactions are limited to today or earlier; future items use Planned Activity
 - More compact Plan and Insights hubs, including support for narrow screens and 200% text scaling
+- A lighter Home dashboard focused on balance, period totals, one priority alert, and recent activity
+- Removed duplicate quick actions, forecast controls, secondary comparison cards, and continuous Home animation
+- Smart Home alerts prioritize overdue and upcoming plans before important budget warnings
+- Recent Home activity now includes transfers, with protected screen-reader descriptions for financial values
+- Fixed page switching so outgoing content fully hides instead of remaining overlapped beneath the destination
 
 ## Release-candidate limitations
 

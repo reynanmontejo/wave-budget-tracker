@@ -274,6 +274,15 @@ final transactionEntriesProvider = StreamProvider<List<TransactionEntry>>((
       .watchTransactionEntries(ref.watch(selectedPeriodProvider));
 });
 
+final recentActivityProvider = StreamProvider<List<ActivityEntry>>((
+  ref,
+) async* {
+  await ref.watch(seedProvider.future);
+  yield* ref
+      .watch(databaseProvider)
+      .watchActivityEntries(ref.watch(selectedPeriodProvider));
+});
+
 final activityTypeFilterProvider = StateProvider<String?>((ref) => null);
 final activityAccountFilterProvider = StateProvider<String?>((ref) => null);
 final activityCategoryFilterProvider = StateProvider<String?>((ref) => null);

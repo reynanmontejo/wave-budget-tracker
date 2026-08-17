@@ -1,141 +1,50 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/dashboard/dashboard_metrics.dart';
 import '../../core/money/money.dart';
 import '../../core/period/expense_period.dart';
-import '../../core/theme/wave_theme.dart';
 import '../../core/theme/wave_page_route.dart';
+import '../../core/theme/wave_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
-import '../../data/schedule_repository.dart';
-import '../../data/savings_repository.dart';
 import '../budgets/budgets_screen.dart';
-import '../transactions/add_transaction_sheet.dart';
 import '../more/more_screen.dart';
+import '../planned/planned_screen.dart';
 
-class HomeScreen extends ConsumerStatefulWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends ConsumerState<HomeScreen>
-    with TickerProviderStateMixin {
-  late final AnimationController _waveController;
-  late final AnimationController _revealController;
-
-  @override
-  void initState() {
-    super.initState();
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    );
-    _revealController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 520),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _waveController.dispose();
-    _revealController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final balances = ref.watch(accountBalancesProvider);
-    final metrics = ref.watch(dashboardMetricsProvider);
-    final motionEnabled =
-        ref.watch(appearanceProvider).gentleMotion &&
-        !MediaQuery.disableAnimationsOf(context);
-    if (motionEnabled && !_waveController.isAnimating) {
-      _waveController.repeat();
-    } else if (!motionEnabled && _waveController.isAnimating) {
-      _waveController.stop();
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(totalsProvider);
           ref.invalidate(accountBalancesProvider);
           ref.invalidate(homeBudgetProgressProvider);
-          ref.invalidate(transactionEntriesProvider);
-          ref.invalidate(expenseReportProvider);
-          ref.invalidate(dashboardMetricsProvider);
+          ref.invalidate(recentActivityProvider);
           await Future.wait([
             ref.read(totalsProvider.future),
             ref.read(accountBalancesProvider.future),
             ref.read(homeBudgetProgressProvider.future),
-            ref.read(transactionEntriesProvider.future),
+            ref.read(recentActivityProvider.future),
           ]);
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          key: const PageStorageKey('light-home'),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
           children: [
-            const _Header(),
+            const _HomeHeader(),
+            const SizedBox(height: 14),
+            const _BalanceHero(),
+            const SizedBox(height: 12),
+            const _PeriodSummary(),
+            const _PriorityAlert(),
             const SizedBox(height: 20),
-            _BalanceCard(
-              balances: balances,
-              visible: ref.watch(balancesVisibleProvider),
-              waveAnimation: motionEnabled ? _waveController : null,
-            ),
-            const SizedBox(height: 16),
-            const _PeriodSelector(),
-            const SizedBox(height: 16),
-            _Reveal(
-              animation: _revealController,
-              enabled: motionEnabled,
-              interval: const Interval(0, .65, curve: Curves.easeOutCubic),
-              child: _FinancialHighlights(
-                metrics: metrics,
-                visible: ref.watch(balancesVisibleProvider),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const _DashboardSectionHeader('Quick actions'),
-            const SizedBox(height: 12),
-            _Reveal(
-              animation: _revealController,
-              enabled: motionEnabled,
-              interval: const Interval(.12, .76, curve: Curves.easeOutCubic),
-              child: const _QuickActions(),
-            ),
-            const SizedBox(height: 24),
-            const _DashboardSectionHeader('Coming up'),
-            const SizedBox(height: 12),
-            _UpcomingForecast(
-              forecast: ref.watch(scheduleForecastProvider),
-              visible: ref.watch(balancesVisibleProvider),
-              days: ref.watch(forecastDaysProvider),
-              onDaysChanged: (days) =>
-                  ref.read(forecastDaysProvider.notifier).state = days,
-            ),
-            const SizedBox(height: 24),
-            const _DashboardSectionHeader('One thing to watch'),
-            const SizedBox(height: 12),
-            _Reveal(
-              animation: _revealController,
-              enabled: motionEnabled,
-              interval: const Interval(.24, .88, curve: Curves.easeOutCubic),
-              child: const _BudgetInsight(),
-            ),
-            const SizedBox(height: 24),
-            const _DashboardSectionHeader('Recent activity'),
-            const SizedBox(height: 12),
-            _Reveal(
-              animation: _revealController,
-              enabled: motionEnabled,
-              interval: const Interval(.36, 1, curve: Curves.easeOutCubic),
-              child: const _RecentActivity(),
-            ),
+            const _SectionTitle('Recent activity'),
+            const SizedBox(height: 10),
+            const _RecentActivity(),
           ],
         ),
       ),
@@ -143,235 +52,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-// Retained as a small reusable preview for future dashboard customization.
-// ignore: unused_element
-class _SavingsGoalsPreview extends StatelessWidget {
-  const _SavingsGoalsPreview({required this.goals, required this.visible});
-  final AsyncValue<List<SavingsGoalProgress>> goals;
-  final bool visible;
+class _HomeHeader extends ConsumerWidget {
+  const _HomeHeader();
 
-  @override
-  Widget build(BuildContext context) => goals.when(
-    loading: () => const SizedBox.shrink(),
-    error: (_, _) => const SizedBox.shrink(),
-    data: (items) {
-      final active = items
-          .where((item) => item.goal.status == SavingsGoalStatus.active.name)
-          .toList();
-      if (active.isEmpty) return const SizedBox.shrink();
-      final saved = active.fold<int>(0, (sum, item) => sum + item.savedMinor);
-      final target = active.fold<int>(
-        0,
-        (sum, item) => sum + item.goal.targetMinor,
-      );
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.savings_outlined, color: WaveColors.savings),
-                  SizedBox(width: 8),
-                  Text(
-                    'Savings goals',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: target == 0 ? 0 : (saved / target).clamp(0, 1),
-                minHeight: 8,
-                borderRadius: BorderRadius.circular(8),
-                color: WaveColors.savings,
-              ),
-              const SizedBox(height: 9),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      visible
-                          ? '${Money(saved).format()} allocated'
-                          : '•••• allocated',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  Text('${active.length} active'),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-class _UpcomingForecast extends StatelessWidget {
-  const _UpcomingForecast({
-    required this.forecast,
-    required this.visible,
-    required this.days,
-    required this.onDaysChanged,
-  });
-
-  final AsyncValue<ScheduleForecast> forecast;
-  final bool visible;
-  final int days;
-  final ValueChanged<int> onDaysChanged;
-
-  @override
-  Widget build(BuildContext context) => forecast.when(
-    loading: () => const SizedBox(
-      height: 74,
-      child: Center(child: CircularProgressIndicator()),
-    ),
-    error: (_, _) => const SizedBox.shrink(),
-    data: (value) => Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.event_note_outlined,
-                  color: WaveColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Next $days days',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 7, label: Text('7d')),
-                    ButtonSegment(value: 30, label: Text('30d')),
-                  ],
-                  selected: {days},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (value) => onDaysChanged(value.first),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _ForecastAmount(
-                    label: 'Upcoming income',
-                    amount: value.incomeMinor,
-                    color: WaveColors.income,
-                    visible: visible,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ForecastAmount(
-                    label: 'Planned expenses',
-                    amount: value.expenseMinor,
-                    color: WaveColors.expense,
-                    visible: visible,
-                  ),
-                ),
-              ],
-            ),
-            if (value.items.isEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Nothing planned yet. Open Plan to add future income or expenses.',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _ForecastAmount extends StatelessWidget {
-  const _ForecastAmount({
-    required this.label,
-    required this.amount,
-    required this.color,
-    required this.visible,
-  });
-  final String label;
-  final int amount;
-  final Color color;
-  final bool visible;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontSize: 11,
-        ),
-      ),
-      const SizedBox(height: 4),
-      FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Text(
-          visible ? Money(amount).format() : '••••',
-          style: TextStyle(color: color, fontWeight: FontWeight.w900),
-        ),
-      ),
-    ],
-  );
-}
-
-class _DashboardSectionHeader extends StatelessWidget {
-  const _DashboardSectionHeader(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    label,
-    style: Theme.of(
-      context,
-    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-  );
-}
-
-class _Header extends ConsumerWidget {
-  const _Header();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final visible = ref.watch(balancesVisibleProvider);
     final motionEnabled =
-        ref.watch(appearanceProvider).gentleMotion &&
+        ref.watch(
+          appearanceProvider.select((preferences) => preferences.gentleMotion),
+        ) &&
         !MediaQuery.disableAnimationsOf(context);
     return Row(
       children: [
-        Icon(
-          Icons.waves_rounded,
-          color: Theme.of(context).colorScheme.primary,
-          size: 32,
-        ),
-        const SizedBox(width: 10),
-        Text(
-          'Wave',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
+        ExcludeSemantics(
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.waves_rounded,
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Wave',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              Text(
+                DateFormat('EEEE, MMMM d').format(DateTime.now()),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
         IconButton(
           onPressed: () => ref.read(balancesVisibleProvider.notifier).toggle(),
           tooltip: visible ? 'Hide balances' : 'Show balances',
@@ -395,702 +124,732 @@ class _Header extends ConsumerWidget {
   }
 }
 
-class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({
-    required this.balances,
-    required this.visible,
-    required this.waveAnimation,
-  });
-  final AsyncValue<List<AccountBalanceSummary>> balances;
-  final bool visible;
-  final Animation<double>? waveAnimation;
+class _BalanceHero extends ConsumerWidget {
+  const _BalanceHero();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final balances = ref.watch(accountBalancesProvider);
+    final visible = ref.watch(balancesVisibleProvider);
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: WaveColors.primary,
-        borderRadius: BorderRadius.all(Radius.circular(20)),
+      constraints: const BoxConstraints(minHeight: 136),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [WaveColors.primaryStrong, WaveColors.primary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: balances.when(
-        loading: () => const SizedBox(
-          height: 104,
-          child: Center(child: CircularProgressIndicator(color: Colors.white)),
-        ),
-        error: (_, _) => const SizedBox(
-          height: 104,
-          child: Center(
-            child: Text(
-              'Unable to load balance',
-              style: TextStyle(color: Colors.white),
-            ),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: Colors.white)),
+        error: (_, _) => const Center(
+          child: Text(
+            'Unable to load your balance.',
+            style: TextStyle(color: Colors.white),
           ),
         ),
-        data: (items) => Stack(
-          children: [
-            Positioned.fill(
-              child: waveAnimation == null
-                  ? CustomPaint(painter: const _WavePainter())
-                  : AnimatedBuilder(
-                      animation: waveAnimation!,
-                      builder: (_, _) => CustomPaint(
-                        painter: _WavePainter(phase: waveAnimation!.value),
+        data: (items) {
+          final total = items.fold<int>(
+            0,
+            (sum, item) => sum + item.balanceMinor,
+          );
+          final formatted = visible ? Money(total).format() : 'hidden';
+          return Semantics(
+            container: true,
+            label:
+                'Total balance $formatted, across ${items.length} active ${items.length == 1 ? 'account' : 'accounts'}',
+            child: ExcludeSemantics(
+              child: Stack(
+                children: [
+                  const Positioned.fill(
+                    child: CustomPaint(painter: _QuietWavePainter()),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'TOTAL BALANCE',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.1,
+                        ),
                       ),
-                    ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Text(
-                      'Total balance',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    SizedBox(width: 6),
-                    Icon(
-                      Icons.account_balance_wallet_outlined,
-                      color: Colors.white70,
-                      size: 16,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  visible
-                      ? Money(
-                          items.fold<int>(
-                            0,
-                            (total, item) => total + item.balanceMinor,
+                      const SizedBox(height: 7),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          visible ? Money(total).format() : '••••••',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.account_balance_wallet_outlined,
+                            color: Colors.white70,
+                            size: 16,
                           ),
-                        ).format()
-                      : '••••••',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              '${items.length} active ${items.length == 1 ? 'account' : 'accounts'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _QuietWavePainter extends CustomPainter {
+  const _QuietWavePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final back = Path()
+      ..moveTo(0, size.height * .72)
+      ..quadraticBezierTo(
+        size.width * .25,
+        size.height * .58,
+        size.width * .52,
+        size.height * .72,
+      )
+      ..quadraticBezierTo(
+        size.width * .78,
+        size.height * .85,
+        size.width,
+        size.height * .66,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(back, Paint()..color = Colors.white.withValues(alpha: .09));
+
+    final front = Path()
+      ..moveTo(0, size.height * .82)
+      ..quadraticBezierTo(
+        size.width * .32,
+        size.height * .69,
+        size.width * .62,
+        size.height * .83,
+      )
+      ..quadraticBezierTo(
+        size.width * .84,
+        size.height * .91,
+        size.width,
+        size.height * .78,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      front,
+      Paint()..color = Colors.white.withValues(alpha: .08),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _QuietWavePainter oldDelegate) => false;
+}
+
+class _PeriodSummary extends ConsumerWidget {
+  const _PeriodSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(selectedPeriodKindProvider);
+    final period = ref.watch(selectedPeriodProvider);
+    final totals = ref.watch(totalsProvider);
+    final visible = ref.watch(balancesVisibleProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(15, 12, 15, 15),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _periodLabel(selected, period),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 30),
-                Text(
-                  '${items.length} active ${items.length == 1 ? 'account' : 'accounts'}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                PopupMenuButton<ExpensePeriodKind>(
+                  tooltip: 'Change summary period',
+                  icon: const Icon(Icons.calendar_month_outlined),
+                  initialValue: selected,
+                  onSelected: (kind) =>
+                      _selectPeriod(context, ref, kind, period),
+                  itemBuilder: (_) => ExpensePeriodKind.values
+                      .map(
+                        (kind) => PopupMenuItem(
+                          value: kind,
+                          child: Text(_menuLabel(kind)),
+                        ),
+                      )
+                      .toList(),
                 ),
               ],
+            ),
+            const Divider(height: 12),
+            totals.when(
+              loading: () => const SizedBox(
+                height: 58,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, _) => const SizedBox(
+                height: 58,
+                child: Center(
+                  child: Text('Summary unavailable. Pull to retry.'),
+                ),
+              ),
+              data: (value) => _SummaryValues(totals: value, visible: visible),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class _WavePainter extends CustomPainter {
-  const _WavePainter({this.phase = 0});
-  final double phase;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (var layer = 0; layer < 3; layer++) {
-      final baseline = size.height * (.68 + layer * .07);
-      final path = Path()..moveTo(0, baseline);
-      for (double x = 0; x <= size.width; x += 4) {
-        path.lineTo(
-          x,
-          baseline +
-              math.sin(
-                    (x / size.width * math.pi * 2) +
-                        layer +
-                        phase * math.pi * 2,
-                  ) *
-                  (8 - layer * 2),
-        );
-      }
-      path
-        ..lineTo(size.width, size.height)
-        ..lineTo(0, size.height)
-        ..close();
-      canvas.drawPath(
-        path,
-        Paint()..color = Colors.white.withValues(alpha: .12 - layer * .025),
-      );
+  Future<void> _selectPeriod(
+    BuildContext context,
+    WidgetRef ref,
+    ExpensePeriodKind kind,
+    ExpensePeriod period,
+  ) async {
+    if (kind != ExpensePeriodKind.custom) {
+      ref.read(selectedPeriodKindProvider.notifier).state = kind;
+      return;
     }
-  }
-
-  @override
-  bool shouldRepaint(covariant _WavePainter oldDelegate) =>
-      oldDelegate.phase != phase;
-}
-
-class _Reveal extends StatelessWidget {
-  const _Reveal({
-    required this.animation,
-    required this.enabled,
-    required this.interval,
-    required this.child,
-  });
-
-  final AnimationController animation;
-  final bool enabled;
-  final Interval interval;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) return child;
-    final curved = CurvedAnimation(parent: animation, curve: interval);
-    return FadeTransition(
-      opacity: curved,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, .05),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
-      ),
+    final today = DateTime.now();
+    final initialStart = period.startInclusive.isAfter(today)
+        ? DateTime(today.year, today.month)
+        : period.startInclusive;
+    final requestedEnd = period.endExclusive.subtract(const Duration(days: 1));
+    final initialEnd = requestedEnd.isAfter(today) ? today : requestedEnd;
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: today,
+      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
     );
-  }
-}
-
-class _PeriodSelector extends ConsumerWidget {
-  const _PeriodSelector();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedPeriodKindProvider);
-    final period = ref.watch(selectedPeriodProvider);
-    return DropdownButtonFormField<ExpensePeriodKind>(
-      initialValue: selected,
-      decoration: const InputDecoration(
-        labelText: 'Dashboard period',
-        prefixIcon: Icon(Icons.date_range_outlined),
-      ),
-      items: ExpensePeriodKind.values
-          .map(
-            (kind) => DropdownMenuItem(
-              value: kind,
-              child: Text(
-                kind == ExpensePeriodKind.custom
-                    ? _customLabel(period)
-                    : _periodLabel(kind),
-              ),
-            ),
-          )
-          .toList(),
-      onChanged: (kind) async {
-        if (kind == null) return;
-        if (kind != ExpensePeriodKind.custom) {
-          ref.read(selectedPeriodKindProvider.notifier).state = kind;
-          return;
-        }
-        final range = await showDateRangePicker(
-          context: context,
-          firstDate: DateTime(2000),
-          lastDate: DateTime(2100),
-          initialDateRange: DateTimeRange(
-            start: period.startInclusive,
-            end: period.endExclusive.subtract(const Duration(days: 1)),
-          ),
-        );
-        if (range == null) return;
-        ref.read(selectedCustomPeriodProvider.notifier).state =
-            ExpensePeriod.custom(range.start, range.end);
-        ref.read(selectedPeriodKindProvider.notifier).state =
-            ExpensePeriodKind.custom;
-      },
-    );
+    if (range == null) return;
+    ref.read(selectedCustomPeriodProvider.notifier).state =
+        ExpensePeriod.custom(range.start, range.end);
+    ref.read(selectedPeriodKindProvider.notifier).state =
+        ExpensePeriodKind.custom;
   }
 
-  static String _periodLabel(ExpensePeriodKind kind) => switch (kind) {
+  static String _periodLabel(
+    ExpensePeriodKind kind,
+    ExpensePeriod period,
+  ) => switch (kind) {
+    ExpensePeriodKind.day => 'Today',
+    ExpensePeriodKind.week => 'This week',
+    ExpensePeriodKind.month => 'This month',
+    ExpensePeriodKind.year => 'This year',
+    ExpensePeriodKind.custom =>
+      '${DateFormat.MMMd().format(period.startInclusive)} – ${DateFormat.MMMd().format(period.endExclusive.subtract(const Duration(days: 1)))}',
+  };
+
+  static String _menuLabel(ExpensePeriodKind kind) => switch (kind) {
     ExpensePeriodKind.day => 'Today',
     ExpensePeriodKind.week => 'This week',
     ExpensePeriodKind.month => 'This month',
     ExpensePeriodKind.year => 'This year',
     ExpensePeriodKind.custom => 'Custom range',
   };
+}
 
-  static String _customLabel(ExpensePeriod period) {
-    if (period.kind != ExpensePeriodKind.custom) return 'Custom range';
-    final end = period.endExclusive.subtract(const Duration(days: 1));
-    return '${DateFormat.MMMd().format(period.startInclusive)} – ${DateFormat.MMMd().format(end)}';
+class _SummaryAmount extends StatelessWidget {
+  const _SummaryAmount({
+    required this.label,
+    required this.amount,
+    required this.visible,
+    required this.color,
+  });
+
+  final String label;
+  final int amount;
+  final bool visible;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final formatted = visible ? Money(amount).format() : 'hidden';
+    return Semantics(
+      container: true,
+      label: '$label: $formatted',
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  visible ? Money(amount).format() : '••••',
+                  style: TextStyle(color: color, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
-class _FinancialHighlights extends StatelessWidget {
-  const _FinancialHighlights({required this.metrics, required this.visible});
+class _SummaryValues extends StatelessWidget {
+  const _SummaryValues({required this.totals, required this.visible});
 
-  final AsyncValue<DashboardMetrics> metrics;
+  final PeriodTotals totals;
   final bool visible;
 
   @override
-  Widget build(BuildContext context) => metrics.when(
-    loading: () => const SizedBox(
-      height: 168,
-      child: Center(child: CircularProgressIndicator()),
-    ),
-    error: (_, _) => const _EmptyCard(
-      icon: Icons.insights_outlined,
-      title: 'Highlights unavailable',
-      message: 'Pull down to try loading your summary again.',
-    ),
-    data: (value) {
-      final comparison = value.expenseChange;
-      final comparisonText = comparison == null
-          ? 'No previous spending'
-          : comparison == 0
-          ? 'Same as previous period'
-          : '${(comparison.abs() * 100).round()}% ${comparison < 0 ? 'less' : 'more'} spending';
+  Widget build(BuildContext context) {
+    final largeText = MediaQuery.textScalerOf(context).scale(14) >= 21;
+    final values = [
+      _SummaryAmount(
+        label: 'Income',
+        amount: totals.incomeMinor,
+        visible: visible,
+        color: WaveColors.income,
+      ),
+      _SummaryAmount(
+        label: 'Expenses',
+        amount: totals.expenseMinor,
+        visible: visible,
+        color: WaveColors.expense,
+      ),
+      _SummaryAmount(
+        label: 'Net',
+        amount: totals.netMinor,
+        visible: visible,
+        color: totals.netMinor >= 0 ? WaveColors.savings : WaveColors.expense,
+      ),
+    ];
+    if (largeText) {
       return Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _HighlightCard(
-                  label: 'Income',
-                  value: visible ? Money(value.incomeMinor).format() : '••••',
-                  icon: Icons.trending_up_rounded,
-                  color: WaveColors.income,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _HighlightCard(
-                  label: 'Expenses',
-                  value: visible ? Money(value.expenseMinor).format() : '••••',
-                  icon: Icons.trending_down_rounded,
-                  color: WaveColors.expense,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _HighlightCard(
-                  label: 'Net saved',
-                  value: visible ? Money(value.netSavedMinor).format() : '••••',
-                  icon: Icons.savings_outlined,
-                  color: value.netSavedMinor >= 0
-                      ? WaveColors.savings
-                      : WaveColors.expense,
-                  supporting:
-                      '${(value.savingsRate * 100).round()}% savings rate',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _HighlightCard(
-                  label: 'Daily average',
-                  value: visible
-                      ? Money(value.averageExpenseMinor).format()
-                      : '••••',
-                  icon: Icons.calendar_today_outlined,
-                  color: WaveColors.primary,
-                  supporting: comparisonText,
-                ),
-              ),
-            ],
-          ),
+          for (var index = 0; index < values.length; index++) ...[
+            SizedBox(width: double.infinity, child: values[index]),
+            if (index != values.length - 1) const Divider(height: 8),
+          ],
         ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: values[0]),
+        const _SummaryDivider(),
+        Expanded(child: values[1]),
+        const _SummaryDivider(),
+        Expanded(child: values[2]),
+      ],
+    );
+  }
+}
+
+class _SummaryDivider extends StatelessWidget {
+  const _SummaryDivider();
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 48, color: Theme.of(context).dividerColor);
+}
+
+class _PriorityAlert extends ConsumerWidget {
+  const _PriorityAlert();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final schedules = ref.watch(scheduledTransactionsProvider);
+    final budgets = ref.watch(homeBudgetProgressProvider);
+    final visible = ref.watch(balancesVisibleProvider);
+    final motionEnabled =
+        ref.watch(
+          appearanceProvider.select((preferences) => preferences.gentleMotion),
+        ) &&
+        !MediaQuery.disableAnimationsOf(context);
+    return schedules.when(
+      data: (items) {
+        final alert = _scheduledAlert(items, visible);
+        return alert == null
+            ? _budgetAlert(budgets, motionEnabled)
+            : _HomeAlertTile(
+                alert: alert,
+                onTap: () => Navigator.push(
+                  context,
+                  WavePageRoute<void>(
+                    motionEnabled: motionEnabled,
+                    builder: (_) => const PlannedScreen(),
+                  ),
+                ),
+              );
+      },
+      loading: () => _budgetAlert(budgets, motionEnabled),
+      error: (_, _) => _budgetAlert(budgets, motionEnabled),
+    );
+  }
+
+  _HomeAlert? _scheduledAlert(List<ScheduledTransaction> items, bool visible) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final limit = today.add(const Duration(days: 3));
+    final relevant =
+        items
+            .where((item) => item.status == 'active')
+            .where((item) => !DateUtils.dateOnly(item.nextDueAt).isAfter(limit))
+            .toList()
+          ..sort((a, b) => a.nextDueAt.compareTo(b.nextDueAt));
+    if (relevant.isEmpty) return null;
+
+    final item = relevant.first;
+    final due = DateUtils.dateOnly(item.nextDueAt);
+    final days = due.difference(today).inDays;
+    final overdue = days < 0;
+    final income = item.type == 'income';
+    final kind = income ? 'income' : 'expense';
+    final amount = visible ? Money(item.amountMinor).format() : '••••';
+    final dueLabel = overdue
+        ? 'was due ${DateFormat.MMMd().format(due)}'
+        : days == 0
+        ? 'is due today'
+        : days == 1
+        ? 'is due tomorrow'
+        : 'is due ${DateFormat.MMMd().format(due)}';
+    return _HomeAlert(
+      title: overdue
+          ? 'Planned $kind overdue'
+          : days == 0
+          ? 'Planned $kind due today'
+          : 'Upcoming planned $kind',
+      message: '$amount $dueLabel.',
+      icon: overdue
+          ? Icons.event_busy_outlined
+          : income
+          ? Icons.payments_outlined
+          : Icons.receipt_long_outlined,
+      color: overdue
+          ? WaveColors.expense
+          : income
+          ? WaveColors.income
+          : WaveColors.warning,
+    );
+  }
+
+  Widget _budgetAlert(
+    AsyncValue<List<BudgetProgress>> budgets,
+    bool motionEnabled,
+  ) => budgets.when(
+    loading: () => const SizedBox.shrink(),
+    error: (_, _) => const SizedBox.shrink(),
+    data: (items) {
+      if (items.isEmpty) return const SizedBox.shrink();
+      final sorted = [...items]
+        ..sort((a, b) => b.fraction.compareTo(a.fraction));
+      final focus = sorted.first;
+      if (focus.fraction < .75) return const SizedBox.shrink();
+      final over = focus.fraction >= 1;
+      final color = over ? WaveColors.expense : WaveColors.warning;
+      return Builder(
+        builder: (context) => _HomeAlertTile(
+          alert: _HomeAlert(
+            title: over ? 'Budget exceeded' : 'Budget getting close',
+            message:
+                '${focus.categoryName} is ${(focus.fraction * 100).round()}% used.',
+            icon: over ? Icons.error_outline_rounded : Icons.speed_rounded,
+            color: color,
+          ),
+          onTap: () => Navigator.push(
+            context,
+            WavePageRoute<void>(
+              motionEnabled: motionEnabled,
+              builder: (_) => const BudgetsScreen(),
+            ),
+          ),
+        ),
       );
     },
   );
 }
 
-class _HighlightCard extends StatelessWidget {
-  const _HighlightCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    this.supporting,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final String? supporting;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(fontWeight: FontWeight.w900, color: color),
-            ),
-          ),
-          if (supporting != null) ...[
-            const SizedBox(height: 5),
-            Text(
-              supporting!,
-              maxLines: 2,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
-}
-
-class _QuickActions extends StatelessWidget {
-  const _QuickActions();
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: _Action(
-          icon: Icons.remove_rounded,
-          label: 'Expense',
-          color: WaveColors.expense,
-          onTap: () => _openEntry(context, EntryMode.expense),
-        ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: _Action(
-          icon: Icons.add_rounded,
-          label: 'Income',
-          color: WaveColors.income,
-          onTap: () => _openEntry(context, EntryMode.income),
-        ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: _Action(
-          icon: Icons.swap_horiz_rounded,
-          label: 'Transfer',
-          color: WaveColors.primary,
-          onTap: () => _openEntry(context, EntryMode.transfer),
-        ),
-      ),
-    ],
-  );
-
-  Future<void> _openEntry(BuildContext context, EntryMode mode) =>
-      showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => AddTransactionSheet(initialMode: mode),
-      );
-}
-
-class _Action extends StatelessWidget {
-  const _Action({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({
-    required this.icon,
+class _HomeAlert {
+  const _HomeAlert({
     required this.title,
     required this.message,
+    required this.icon,
+    required this.color,
   });
-  final IconData icon;
+
   final String title;
   final String message;
+  final IconData icon;
+  final Color color;
+}
+
+class _HomeAlertTile extends StatelessWidget {
+  const _HomeAlertTile({required this.alert, required this.onTap});
+
+  final _HomeAlert alert;
+  final VoidCallback onTap;
+
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Icon(
-                icon,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Semantics(
+      button: true,
+      excludeSemantics: true,
+      label: '${alert.title}. ${alert.message}',
+      child: Material(
+        color: alert.color.withValues(alpha: .09),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: alert.color.withValues(alpha: .28)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(13),
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  message,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                Icon(alert.icon, color: alert.color),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        alert.title,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(alert.message),
+                    ],
                   ),
                 ),
+                const Icon(Icons.chevron_right_rounded),
               ],
             ),
           ),
-        ],
+        ),
       ),
     ),
   );
 }
 
-class _BudgetInsight extends ConsumerWidget {
-  const _BudgetInsight();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final budgets = ref.watch(homeBudgetProgressProvider);
-    final motionEnabled =
-        ref.watch(appearanceProvider).gentleMotion &&
-        !MediaQuery.disableAnimationsOf(context);
-    return budgets.when(
-      loading: () => const Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      ),
-      error: (_, _) => const _EmptyCard(
-        icon: Icons.pie_chart_outline_rounded,
-        title: 'Budget preview unavailable',
-        message: 'Your budget data was not changed.',
-      ),
-      data: (items) {
-        if (items.isEmpty) {
-          return _DashboardInsightTile(
-            icon: Icons.pie_chart_outline_rounded,
-            title: 'Create your first budget',
-            message: 'Set one monthly limit to start tracking spending.',
-            color: WaveColors.primary,
-            onTap: () => _openBudgets(context, motionEnabled),
-          );
-        }
-        final item = [...items]
-          ..sort((a, b) => b.fraction.compareTo(a.fraction));
-        final focus = item.first;
-        final percent = (focus.fraction * 100).round();
-        final color = focus.fraction >= 1
-            ? WaveColors.expense
-            : focus.fraction >= .75
-            ? WaveColors.warning
-            : WaveColors.primary;
-        final status = focus.fraction >= 1
-            ? 'over its monthly limit'
-            : focus.fraction >= .75
-            ? 'approaching its monthly limit'
-            : 'currently on track';
-        return _DashboardInsightTile(
-          icon: Icons.pie_chart_rounded,
-          title: '${focus.categoryName}: $percent% used',
-          message: 'This budget is $status.',
-          color: color,
-          progress: focus.fraction.clamp(0, 1),
-          motionEnabled: motionEnabled,
-          onTap: () => _openBudgets(context, motionEnabled),
-        );
-      },
-    );
-  }
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.label);
 
-  void _openBudgets(BuildContext context, bool motionEnabled) {
-    Navigator.push(
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: Theme.of(
       context,
-      WavePageRoute<void>(
-        motionEnabled: motionEnabled,
-        builder: (_) => const BudgetsScreen(),
-      ),
-    );
-  }
-}
-
-class _DashboardInsightTile extends StatelessWidget {
-  const _DashboardInsightTile({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.color,
-    required this.onTap,
-    this.progress,
-    this.motionEnabled = false,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final Color color;
-  final VoidCallback onTap;
-  final double? progress;
-  final bool motionEnabled;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: EdgeInsets.zero,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: color.withValues(alpha: .13),
-              foregroundColor: color,
-              child: Icon(icon),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(message),
-                  if (progress != null) ...[
-                    const SizedBox(height: 10),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(
-                        begin: motionEnabled ? 0 : progress,
-                        end: progress,
-                      ),
-                      duration: motionEnabled
-                          ? const Duration(milliseconds: 500)
-                          : Duration.zero,
-                      builder: (_, value, _) => LinearProgressIndicator(
-                        value: value,
-                        color: color,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right_rounded),
-          ],
-        ),
-      ),
-    ),
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
   );
 }
 
 class _RecentActivity extends ConsumerWidget {
   const _RecentActivity();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final entries = ref.watch(transactionEntriesProvider);
-    return entries.when(
-      loading: () => const Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      ),
-      error: (_, _) => const _EmptyCard(
-        icon: Icons.receipt_long_outlined,
-        title: 'Activity unavailable',
-        message: 'Your transaction data was not changed.',
-      ),
-      data: (items) => items.isEmpty
-          ? const _EmptyCard(
-              icon: Icons.waves_rounded,
-              title: 'Ready for your first entry',
-              message: 'Tap Add to record an expense, income, or transfer.',
-            )
-          : Card(
+    final visible = ref.watch(balancesVisibleProvider);
+    return ref
+        .watch(recentActivityProvider)
+        .when(
+          loading: () => const Card(
+            child: SizedBox(
+              height: 112,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+          error: (_, _) => const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('Recent activity is unavailable. Pull to retry.'),
+            ),
+          ),
+          data: (items) {
+            if (items.isEmpty) {
+              return const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: WaveColors.primary,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Tap Add to record your first transaction.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            final recent = items.take(3).toList();
+            return Card(
+              clipBehavior: Clip.antiAlias,
               child: Column(
                 children: [
-                  for (final item in items.take(4))
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            (item.transaction.type == 'income'
-                                    ? WaveColors.income
-                                    : WaveColors.expense)
-                                .withValues(alpha: .12),
-                        foregroundColor: item.transaction.type == 'income'
-                            ? WaveColors.income
-                            : WaveColors.expense,
-                        child: Icon(
-                          item.transaction.type == 'income'
-                              ? Icons.add_rounded
-                              : Icons.remove_rounded,
-                        ),
-                      ),
-                      title: Text(
-                        item.categoryName,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text(item.accountName),
-                      trailing: Text(
-                        '${item.transaction.type == 'income' ? '+' : '-'}${Money(item.transaction.amountMinor).format()}',
-                        style: TextStyle(
-                          color: item.transaction.type == 'income'
-                              ? WaveColors.income
-                              : WaveColors.expense,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
+                  for (var index = 0; index < recent.length; index++) ...[
+                    _ActivityRow(item: recent[index], visible: visible),
+                    if (index != recent.length - 1)
+                      const Divider(height: 1, indent: 64),
+                  ],
                 ],
               ),
+            );
+          },
+        );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.item, required this.visible});
+
+  final ActivityEntry item;
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    final isIncome = item.kind == 'income';
+    final isTransfer = item.kind == 'transfer';
+    final color = isTransfer
+        ? WaveColors.primary
+        : isIncome
+        ? WaveColors.income
+        : WaveColors.expense;
+    final icon = isTransfer
+        ? Icons.swap_horiz_rounded
+        : isIncome
+        ? Icons.arrow_downward_rounded
+        : Icons.arrow_upward_rounded;
+    final account = isTransfer
+        ? '${item.accountName} → ${item.destinationName ?? ''}'
+        : item.accountName;
+    final prefix = isTransfer ? '' : (isIncome ? '+' : '-');
+    final semanticsAmount = visible
+        ? '$prefix${Money(item.amountMinor).format()}'
+        : 'amount hidden';
+    final semanticsLabel = isTransfer
+        ? 'Transfer, $account, $semanticsAmount'
+        : '${isIncome ? 'Income' : 'Expense'}, ${item.title}, $account, $semanticsAmount';
+    final largeText = MediaQuery.textScalerOf(context).scale(14) >= 21;
+    final avatar = CircleAvatar(
+      radius: 18,
+      backgroundColor: color.withValues(alpha: .11),
+      foregroundColor: color,
+      child: Icon(icon, size: 18),
+    );
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          item.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        Text(account, maxLines: 1, overflow: TextOverflow.ellipsis),
+        if (largeText) ...[
+          const SizedBox(height: 3),
+          Text(
+            visible ? '$prefix${Money(item.amountMinor).format()}' : '••••',
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
+          ),
+        ],
+      ],
+    );
+    if (largeText) {
+      return Semantics(
+        container: true,
+        excludeSemantics: true,
+        label: semanticsLabel,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              avatar,
+              const SizedBox(width: 11),
+              Expanded(child: details),
+            ],
+          ),
+        ),
+      );
+    }
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      label: semanticsLabel,
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+        leading: avatar,
+        title: details,
+        trailing: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 112),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              visible ? '$prefix${Money(item.amountMinor).format()}' : '••••',
+              style: TextStyle(color: color, fontWeight: FontWeight.w900),
             ),
+          ),
+        ),
+      ),
     );
   }
 }

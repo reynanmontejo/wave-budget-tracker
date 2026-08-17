@@ -20,19 +20,26 @@ class WavePageRoute<T> extends MaterialPageRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    if (!motionEnabled) return child;
+    final page = ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: child,
+    );
+    if (!motionEnabled) return page;
     final curved = CurvedAnimation(
       parent: animation,
       curve: Curves.easeOutCubic,
     );
-    return FadeTransition(
-      opacity: curved,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(.025, 0),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(.025, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: page,
+        ),
       ),
     );
   }

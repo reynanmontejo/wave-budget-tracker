@@ -86,24 +86,24 @@ class _AppShellState extends ConsumerState<AppShell>
               Positioned.fill(
                 child: IgnorePointer(
                   ignoring: index != _index,
-                  child: TickerMode(
-                    enabled: index == _index,
-                    child: AnimatedOpacity(
-                      key: ValueKey('shell-page-$index'),
+                  child: AnimatedOpacity(
+                    key: ValueKey('shell-page-$index'),
+                    duration: duration,
+                    curve: Curves.easeOutCubic,
+                    opacity: index == _index ? 1 : 0,
+                    child: AnimatedSlide(
                       duration: duration,
                       curve: Curves.easeOutCubic,
-                      opacity: index == _index ? 1 : 0,
-                      child: AnimatedSlide(
-                        duration: duration,
-                        curve: Curves.easeOutCubic,
-                        offset: index == _index
-                            ? Offset.zero
-                            : Offset(
-                                index == _previousIndex
-                                    ? (movingForward ? -0.025 : 0.025)
-                                    : 0,
-                                0,
-                              ),
+                      offset: index == _index
+                          ? Offset.zero
+                          : Offset(
+                              index == _previousIndex
+                                  ? (movingForward ? -0.025 : 0.025)
+                                  : 0,
+                              0,
+                            ),
+                      child: TickerMode(
+                        enabled: index == _index,
                         child: _destinations[index],
                       ),
                     ),
