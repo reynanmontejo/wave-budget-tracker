@@ -44,7 +44,7 @@ class AppearanceScreen extends ConsumerWidget {
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               subtitle: const Text(
-                'Ambient waves and soft dashboard transitions. Device reduced-motion settings always take priority.',
+                'Subtle in-page and dashboard transitions. Device reduced-motion settings always take priority.',
               ),
             ),
           ),

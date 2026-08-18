@@ -8,6 +8,7 @@ import 'package:wave/data/budget_repository.dart';
 import 'package:wave/data/database/app_database.dart';
 import 'package:wave/data/database/seed_data.dart';
 import 'package:wave/data/ledger_repository.dart';
+import 'package:wave/data/management_repository.dart';
 import 'package:wave/data/schedule_repository.dart';
 import 'package:wave/data/savings_repository.dart';
 
@@ -172,6 +173,39 @@ void main() {
     );
   });
 
+  test('backup restores e-wallet metadata and balance adjustments', () async {
+    final management = ManagementRepository(database);
+    final walletId = await management.createAccount(
+      name: 'Daily wallet',
+      typeName: 'E-wallet',
+      openingBalanceMinor: 10000,
+      walletProviderName: 'GCash',
+      walletProviderKey: 'gcash',
+      walletIdentifierSuffix: '42',
+    );
+    await management.reconcileAccountBalance(
+      accountId: walletId,
+      observedBalanceMinor: 12500,
+      note: 'Wallet check',
+    );
+    final backup = await backups.createJsonBackup();
+    final verification = await backups.verify(backup.file);
+    expect(verification.balanceAdjustments, 1);
+
+    final summary = await backups.restore(backup.file);
+    expect(summary.balanceAdjustments, 1);
+    final wallet = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals(walletId))).getSingle();
+    expect(wallet.walletProviderName, 'GCash');
+    expect(wallet.walletIdentifierSuffix, '42');
+    final balances = await database.accountBalances();
+    expect(
+      balances.singleWhere((item) => item.account.id == walletId).balanceMinor,
+      12500,
+    );
+  });
+
   test('CSV export escapes notes containing commas and quotes', () async {
     await LedgerRepository(database).createEntry(
       type: LedgerEntryType.expense,
@@ -203,11 +237,22 @@ void main() {
       amountMinor: 10000,
       occurredAt: DateTime(2026, 8, 14),
     );
+    final management = ManagementRepository(database);
+    final walletId = await management.createAccount(
+      name: 'CSV wallet',
+      typeName: 'E-wallet',
+      openingBalanceMinor: 1000,
+    );
+    await management.reconcileAccountBalance(
+      accountId: walletId,
+      observedBalanceMinor: 1200,
+    );
 
     final export = await backups.exportCsv();
     final contents = await export.file.readAsString();
     expect(contents, contains('transfer'));
     expect(contents, contains('savings_goal'));
     expect(contents, contains('savings_contribution'));
+    expect(contents, contains('balance_adjustment'));
   });
 }

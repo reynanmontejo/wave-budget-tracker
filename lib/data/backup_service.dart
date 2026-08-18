@@ -30,6 +30,7 @@ final class RestoreSummary {
     required this.budgets,
     required this.schedules,
     required this.savingsGoals,
+    required this.balanceAdjustments,
   });
   final int accounts;
   final int transactions;
@@ -37,6 +38,7 @@ final class RestoreSummary {
   final int budgets;
   final int schedules;
   final int savingsGoals;
+  final int balanceAdjustments;
 }
 
 final class BackupVerification {
@@ -51,6 +53,7 @@ final class BackupVerification {
     required this.schedules,
     required this.savingsGoals,
     required this.savingsContributions,
+    required this.balanceAdjustments,
   });
   final DateTime? exportedAt;
   final int schemaVersion;
@@ -62,6 +65,7 @@ final class BackupVerification {
   final int schedules;
   final int savingsGoals;
   final int savingsContributions;
+  final int balanceAdjustments;
 }
 
 final class BackupService {
@@ -71,7 +75,7 @@ final class BackupService {
 
   static const format = 'wave-budget-backup';
   static const encryptedFormat = 'wave-budget-backup-encrypted';
-  static const schemaVersion = 4;
+  static const schemaVersion = 5;
 
   final AppDatabase database;
   final DirectoryProvider _directoryProvider;
@@ -118,11 +122,15 @@ final class BackupService {
           (await database.select(database.savingsContributions).get())
               .map((item) => item.toJson())
               .toList(),
+      'accountBalanceAdjustments':
+          (await database.select(database.accountBalanceAdjustments).get())
+              .map((item) => item.toJson())
+              .toList(),
     };
     final payload = <String, dynamic>{
       'format': format,
       'schemaVersion': schemaVersion,
-      'minimumWaveSchemaVersion': 4,
+      'minimumWaveSchemaVersion': 5,
       'exportedAt': now.toUtc().toIso8601String(),
       'checksum': _checksum(data),
       'data': data,
@@ -172,6 +180,9 @@ final class BackupService {
     final goals = await database.select(database.savingsGoals).get();
     final contributions = await database
         .select(database.savingsContributions)
+        .get();
+    final adjustments = await database
+        .select(database.accountBalanceAdjustments)
         .get();
     final goalNames = {for (final item in goals) item.id: item.name};
     final buffer = StringBuffer(
@@ -224,6 +235,23 @@ final class BackupService {
           '${accounts[item.fromAccountId] ?? item.fromAccountId} -> ${accounts[item.toAccountId] ?? item.toAccountId}',
           '',
           item.occurredAt.toIso8601String(),
+          item.note ?? '',
+          '',
+          'posted',
+        ].map(_csvCell).join(','),
+      );
+    }
+    for (final item in adjustments) {
+      buffer.writeln(
+        [
+          'balance_adjustment',
+          item.id,
+          'adjustment',
+          item.differenceMinor,
+          'PHP',
+          accounts[item.accountId] ?? item.accountId,
+          '',
+          item.createdAt.toIso8601String(),
           item.note ?? '',
           '',
           'posted',
@@ -314,6 +342,7 @@ final class BackupService {
     if (backupVersion != 1 &&
         backupVersion != 2 &&
         backupVersion != 3 &&
+        backupVersion != 4 &&
         backupVersion != schemaVersion) {
       throw const FormatException('Unsupported backup version.');
     }
@@ -359,16 +388,23 @@ final class BackupService {
             'scheduledOccurrences',
             ScheduledOccurrence.fromJson,
           );
-    final goals = backupVersion == 3 || backupVersion == 4
+    final goals = backupVersion >= 3
         ? _decodeList(data, 'savingsGoals', SavingsGoal.fromJson)
         : <SavingsGoal>[];
-    final contributions = backupVersion == 3 || backupVersion == 4
+    final contributions = backupVersion >= 3
         ? _decodeList(
             data,
             'savingsContributions',
             SavingsContribution.fromJson,
           )
         : <SavingsContribution>[];
+    final adjustments = backupVersion >= 5
+        ? _decodeList(
+            data,
+            'accountBalanceAdjustments',
+            AccountBalanceAdjustment.fromJson,
+          )
+        : <AccountBalanceAdjustment>[];
     _validateReferences(
       accounts,
       categories,
@@ -379,9 +415,11 @@ final class BackupService {
       occurrences,
       goals,
       contributions,
+      adjustments,
     );
 
     await database.transaction(() async {
+      await database.delete(database.accountBalanceAdjustments).go();
       await database.delete(database.savingsContributions).go();
       await database.delete(database.savingsGoals).go();
       await database.delete(database.scheduledOccurrences).go();
@@ -418,6 +456,9 @@ final class BackupService {
       for (final item in contributions) {
         await database.into(database.savingsContributions).insert(item);
       }
+      for (final item in adjustments) {
+        await database.into(database.accountBalanceAdjustments).insert(item);
+      }
     });
     return RestoreSummary(
       accounts: accounts.length,
@@ -426,6 +467,7 @@ final class BackupService {
       budgets: budgets.length,
       schedules: schedules.length,
       savingsGoals: goals.length,
+      balanceAdjustments: adjustments.length,
     );
   }
 
@@ -477,6 +519,13 @@ final class BackupService {
             'savingsContributions',
             SavingsContribution.fromJson,
           );
+    final adjustments = version < 5
+        ? <AccountBalanceAdjustment>[]
+        : _decodeList(
+            data,
+            'accountBalanceAdjustments',
+            AccountBalanceAdjustment.fromJson,
+          );
     _validateReferences(
       accounts,
       categories,
@@ -487,6 +536,7 @@ final class BackupService {
       occurrences,
       goals,
       contributions,
+      adjustments,
     );
 
     return BackupVerification(
@@ -501,6 +551,7 @@ final class BackupService {
       schedules: schedules.length,
       savingsGoals: goals.length,
       savingsContributions: contributions.length,
+      balanceAdjustments: adjustments.length,
     );
   }
 
@@ -613,6 +664,7 @@ final class BackupService {
     List<ScheduledOccurrence> occurrences,
     List<SavingsGoal> goals,
     List<SavingsContribution> contributions,
+    List<AccountBalanceAdjustment> adjustments,
   ) {
     if (accounts.isEmpty) {
       throw const FormatException(
@@ -692,6 +744,21 @@ final class BackupService {
       if (item.amountMinor <= 0 || !goalIds.contains(item.goalId)) {
         throw const FormatException(
           'A savings contribution contains invalid data.',
+        );
+      }
+    }
+    final adjustmentIds = adjustments.map((item) => item.id).toSet();
+    if (adjustmentIds.length != adjustments.length) {
+      throw const FormatException(
+        'Backup contains duplicate balance adjustment IDs.',
+      );
+    }
+    for (final item in adjustments) {
+      if (!accountIds.contains(item.accountId) ||
+          item.differenceMinor == 0 ||
+          item.observedBalanceMinor < 0) {
+        throw const FormatException(
+          'A balance adjustment contains invalid data.',
         );
       }
     }

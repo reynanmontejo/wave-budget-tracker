@@ -8,6 +8,17 @@ Wave helps you understand where your money goes without requiring an account, an
 
 [Download the latest Android release](https://github.com/reynanmontejo/wave-budget-tracker/releases/latest)
 
+## At a glance
+
+| | |
+|---|---|
+| **Platform** | Android, built with Flutter and Dart |
+| **Data storage** | On-device SQLite database through Drift |
+| **Connectivity** | Fully offline for core budgeting workflows |
+| **Currency** | Philippine peso (PHP) for the current personal-use release |
+| **Accounts** | Cash, bank, savings, and provider-aware manual e-wallets |
+| **Release status** | Automated verification complete; physical-device review pending |
+
 ## Why Wave?
 
 Personal finance tools often require cloud accounts, subscriptions, or bank access. Wave takes a simpler approach:
@@ -33,8 +44,17 @@ Personal finance tools often require cloud accounts, subscriptions, or bank acce
 ### Accounts and categories
 
 - Track cash, bank, e-wallet, savings, and other account types
+- Create provider-aware manual e-wallet cards with an initial wallet value
+- Use GCash, Maya, ShopeePay, GrabPay, or a custom provider identity without
+  connecting an external account
+- Reconcile a wallet value with an auditable adjustment and Undo without
+  changing income, expense, or budget reports
 - Calculate balances from the complete ledger
-- Create, edit, and archive accounts
+- Scan compact account cards from Home and open complete account details
+- Create and edit accounts with review confirmation
+- Archive and restore accounts without losing historical records
+- Permanently delete only unused zero-balance accounts after dependency checks
+- Customize account icons, card colors, opening dates, and total-balance inclusion
 - Use preset or custom income and expense categories
 - Rename or archive categories without breaking historical records
 
@@ -92,11 +112,17 @@ The selected soft-blue experience covers the core journey: checking the dashboar
 
 ![Wave soft-blue UI/UX screens showing the dashboard, expense entry, transactions, budgets, and accounts](design/wave-ui-concept.png)
 
-#### Improved input and motion
+#### Improved input and navigation
 
-The revised experience uses a two-step transaction flow, explicit review, Undo feedback, state-preserving navigation, and a subtle Wave transition. Primary navigation is organized around Home, Activity, Plan, and Insights.
+The revised experience uses a two-step transaction flow, explicit review, Undo feedback, state-preserving navigation, and restrained fade/slide transitions. Primary navigation is organized around Home, Activity, Plan, and Insights; the earlier full-screen wave sweep has been removed for a lighter experience.
 
 ![Wave transaction input and page-motion proposal](design/wave-input-flow-motion-v2.png)
+
+#### Accounts and e-wallets
+
+Wave includes compact account cards and provider-aware manual e-wallets for GCash, Maya, ShopeePay, GrabPay, and custom providers. Wallet balances remain private and offline, with complete create, read, update, archive, restore, reconcile, and guarded-delete flows.
+
+![Wave account and e-wallet card review screens](design/review/wave-e-wallet-cards.png)
 
 #### Early visual exploration
 
@@ -104,7 +130,7 @@ The original Calm Ledger concept established the layout, information hierarchy, 
 
 ![Early Calm Ledger UI/UX exploration showing five personal-budget screens](design/calm-ledger-ui-concept.png)
 
-The complete design proposal is available in [UI_UX_PROPOSAL.md](UI_UX_PROPOSAL.md). The product and implementation plan is documented in [APP_PLAN.md](APP_PLAN.md).
+The complete design proposal is available in [UI_UX_PROPOSAL.md](UI_UX_PROPOSAL.md), with all current page boards indexed in [design/review/UI_UX_REVIEW_BOARDS.md](design/review/UI_UX_REVIEW_BOARDS.md). The product and implementation plan is documented in [APP_PLAN.md](APP_PLAN.md).
 
 ## Technology
 
@@ -126,9 +152,11 @@ opening balance
 - expenses
 + incoming transfers
 - outgoing transfers
++ balance adjustments
 ```
 
-Transfers are stored separately from income and expenses, keeping cash-flow reports accurate.
+Transfers and balance adjustments are stored separately from income and
+expenses, keeping cash-flow reports accurate.
 
 ## Project structure
 
@@ -172,10 +200,11 @@ Drift's generated database file is committed so the project can be analyzed imme
 ## Testing status
 
 - Static analysis: clean
-- Automated tests: 67 passing
+- Automated tests: 96 passing
 - Ledger and transfer calculations: covered
 - Budget period isolation: covered
 - Backup round-trip and malformed-backup rejection: covered
+- E-wallet metadata, reconciliation, migration, and backup round trip: covered
 - Onboarding and preference persistence: covered
 - Version 1 database upgrade preservation: covered
 - 5,000-entry ledger queries: covered
@@ -200,6 +229,7 @@ The JSON format contains:
 - Budgets
 - Savings goals and contributions
 - Planned and recurring transactions
+- E-wallet provider metadata and balance adjustments
 
 Restore validates the complete file and its relationships before replacing live data. The replacement runs inside a single database transaction.
 

@@ -99,10 +99,10 @@ Recommended top-to-bottom hierarchy:
 
 1. Greeting or current month and a privacy toggle for hiding amounts
 2. **Total balance** hero card
-3. Period selector with Today, Week, Month, Year, and Custom options
-4. Selected period's **Income**, **Expenses**, and **Net** summary
-5. Quick actions: Expense, Income, Transfer
-6. Budget status, showing the three categories closest to their limits
+3. Compact horizontally scrolling **My accounts** cards with **See all** and **Add account**
+4. Period selector with Today, Week, Month, Year, and Custom options
+5. Selected period's **Income**, **Expenses**, and **Net** summary
+6. One priority alert when action is needed
 7. Recent transactions
 8. Small backup-status message when relevant
 
@@ -183,11 +183,24 @@ Display total balance first, followed by account cards showing:
 
 - Account name and type
 - Current balance
-
-- Optional savings goal progress
+- Currency code
+- Account icon and restrained color identity
 - Archived status where applicable
 
+Use the same card component in compact form on Home and full-width form on the Accounts screen. Home cards scroll horizontally and link to account details; the full Accounts screen separates active and archived accounts.
+
 The account detail screen shows balance, activity, income, expense, and transfer history. Editing the opening balance after transactions exist should include a clear explanation of how the displayed balance will change.
+
+Account management must provide complete CRUD with confirmation:
+
+- Create an account from Home or Accounts.
+- Read its calculated balance and filtered activity.
+- Update its identity and supported settings with a before-and-after summary.
+- Archive accounts that contain financial history.
+- Restore archived accounts.
+- Permanently delete only unused zero-balance accounts with no linked transactions, transfers, schedules, or savings goals.
+
+Wave must retain at least one active account. Permanent deletion must never cascade into financial history.
 
 ### 4.7 Reports
 

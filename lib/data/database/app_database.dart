@@ -18,9 +18,26 @@ class Accounts extends Table {
       integer().withDefault(const Constant(0xFF5B8DEF))();
   BoolColumn get includeInNetWorth =>
       boolean().withDefault(const Constant(true))();
+  TextColumn get walletProviderName => text().nullable()();
+  TextColumn get walletProviderKey => text().nullable()();
+  TextColumn get walletIdentifierSuffix =>
+      text().withLength(min: 1, max: 4).nullable()();
+  DateTimeColumn get walletLastReconciledAt => dateTime().nullable()();
   DateTimeColumn get archivedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class AccountBalanceAdjustments extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId => text().references(Accounts, #id)();
+  IntColumn get differenceMinor => integer()();
+  IntColumn get observedBalanceMinor => integer()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -309,6 +326,7 @@ final class ExpenseReport {
     ScheduledOccurrences,
     SavingsGoals,
     SavingsContributions,
+    AccountBalanceAdjustments,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -316,7 +334,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'wave'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -332,6 +350,13 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await migrator.createTable(savingsGoals);
         await migrator.createTable(savingsContributions);
+      }
+      if (from < 5) {
+        await migrator.addColumn(accounts, accounts.walletProviderName);
+        await migrator.addColumn(accounts, accounts.walletProviderKey);
+        await migrator.addColumn(accounts, accounts.walletIdentifierSuffix);
+        await migrator.addColumn(accounts, accounts.walletLastReconciledAt);
+        await migrator.createTable(accountBalanceAdjustments);
       }
     },
     beforeOpen: (details) async {
@@ -467,12 +492,91 @@ ORDER BY occurred_at DESC
     );
   }
 
-  Future<List<AccountBalanceSummary>> accountBalances() async {
-    final activeAccounts = await (select(
-      accounts,
-    )..where((row) => row.archivedAt.isNull())).get();
+  Stream<List<ActivityEntry>> watchAccountActivityEntries(String accountId) {
+    const sql = '''
+SELECT lt.id, lt.type AS kind, lt.amount_minor, lt.occurred_at, lt.note,
+       c.name AS title, a.name AS account_name, NULL AS destination_name,
+       lt.category_id, lt.account_id, NULL AS destination_account_id
+FROM ledger_transactions lt
+JOIN categories c ON c.id = lt.category_id
+JOIN accounts a ON a.id = lt.account_id
+WHERE lt.account_id = ?
+UNION ALL
+SELECT t.id, 'transfer' AS kind, t.amount_minor, t.occurred_at, t.note,
+       'Transfer' AS title, source.name AS account_name,
+       destination.name AS destination_name, NULL AS category_id,
+       t.from_account_id AS account_id, t.to_account_id AS destination_account_id
+FROM transfers t
+JOIN accounts source ON source.id = t.from_account_id
+JOIN accounts destination ON destination.id = t.to_account_id
+WHERE t.from_account_id = ? OR t.to_account_id = ?
+UNION ALL
+SELECT adjustment.id,
+       CASE WHEN adjustment.difference_minor >= 0
+            THEN 'adjustment_in' ELSE 'adjustment_out' END AS kind,
+       ABS(adjustment.difference_minor) AS amount_minor,
+       adjustment.created_at AS occurred_at, adjustment.note,
+       'Balance adjustment' AS title, account.name AS account_name,
+       NULL AS destination_name, NULL AS category_id,
+       adjustment.account_id AS account_id, NULL AS destination_account_id
+FROM account_balance_adjustments adjustment
+JOIN accounts account ON account.id = adjustment.account_id
+WHERE adjustment.account_id = ?
+ORDER BY occurred_at DESC
+''';
+    return customSelect(
+      sql,
+      variables: [
+        Variable.withString(accountId),
+        Variable.withString(accountId),
+        Variable.withString(accountId),
+        Variable.withString(accountId),
+      ],
+      readsFrom: {
+        ledgerTransactions,
+        transfers,
+        categories,
+        accounts,
+        accountBalanceAdjustments,
+      },
+    ).watch().map(
+      (rows) => rows
+          .map(
+            (row) => ActivityEntry(
+              id: row.read<String>('id'),
+              kind: row.read<String>('kind'),
+              amountMinor: row.read<int>('amount_minor'),
+              occurredAt: row.read<DateTime>('occurred_at'),
+              title: row.read<String>('title'),
+              accountName: row.read<String>('account_name'),
+              destinationName: row.readNullable<String>('destination_name'),
+              categoryId: row.readNullable<String>('category_id'),
+              accountId: row.readNullable<String>('account_id'),
+              destinationAccountId: row.readNullable<String>(
+                'destination_account_id',
+              ),
+              note: row.readNullable<String>('note'),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Future<List<AccountBalanceSummary>> accountBalances({
+    bool includeArchived = false,
+  }) async {
+    final accountQuery = select(accounts);
+    if (!includeArchived) {
+      accountQuery.where((row) => row.archivedAt.isNull());
+    }
+    accountQuery.orderBy([
+      (row) => OrderingTerm.asc(row.archivedAt),
+      (row) => OrderingTerm.asc(row.createdAt),
+    ]);
+    final activeAccounts = await accountQuery.get();
     final transactions = await select(ledgerTransactions).get();
     final allTransfers = await select(transfers).get();
+    final allAdjustments = await select(accountBalanceAdjustments).get();
 
     return activeAccounts.map((account) {
       var balance = account.openingBalanceMinor;
@@ -490,6 +594,11 @@ ORDER BY occurred_at DESC
         if (transfer.toAccountId == account.id) {
           balance += transfer.amountMinor;
         }
+      }
+      for (final adjustment in allAdjustments.where(
+        (item) => item.accountId == account.id,
+      )) {
+        balance += adjustment.differenceMinor;
       }
       return AccountBalanceSummary(account: account, balanceMinor: balance);
     }).toList();

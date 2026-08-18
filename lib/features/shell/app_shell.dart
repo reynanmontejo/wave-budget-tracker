@@ -16,11 +16,9 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell>
-    with SingleTickerProviderStateMixin {
+class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
   int _previousIndex = 0;
-  late final AnimationController _waveController;
 
   static const _destinations = <Widget>[
     HomeScreen(),
@@ -29,21 +27,6 @@ class _AppShellState extends ConsumerState<AppShell>
     PlanHubScreen(),
     InsightsHubScreen(),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-    );
-  }
-
-  @override
-  void dispose() {
-    _waveController.dispose();
-    super.dispose();
-  }
 
   Future<void> _select(int index) async {
     if (index == 2) {
@@ -61,10 +44,6 @@ class _AppShellState extends ConsumerState<AppShell>
       _previousIndex = _index;
       _index = index;
     });
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    if (ref.read(appearanceProvider).gentleMotion && !reduceMotion) {
-      _waveController.forward(from: 0);
-    }
   }
 
   @override
@@ -110,23 +89,6 @@ class _AppShellState extends ConsumerState<AppShell>
                   ),
                 ),
               ),
-          if (motionEnabled)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _waveController,
-                  builder: (context, _) => CustomPaint(
-                    painter: _NavigationWavePainter(
-                      progress: Curves.easeInOut.transform(
-                        _waveController.value,
-                      ),
-                      movingForward: movingForward,
-                      color: WaveColors.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -161,52 +123,4 @@ class _AppShellState extends ConsumerState<AppShell>
       ),
     );
   }
-}
-
-class _NavigationWavePainter extends CustomPainter {
-  const _NavigationWavePainter({
-    required this.progress,
-    required this.movingForward,
-    required this.color,
-  });
-
-  final double progress;
-  final bool movingForward;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (progress <= 0 || progress >= 1) return;
-    final opacity = (1 - (progress - .5).abs() * 2) * .16;
-    final travel = movingForward ? progress : 1 - progress;
-    final center = size.width * travel;
-    final paint = Paint()..color = color.withValues(alpha: opacity);
-    final path = Path()
-      ..moveTo(center - size.width * .7, size.height)
-      ..cubicTo(
-        center - size.width * .45,
-        size.height - 76,
-        center - size.width * .2,
-        size.height - 20,
-        center,
-        size.height - 54,
-      )
-      ..cubicTo(
-        center + size.width * .2,
-        size.height - 88,
-        center + size.width * .45,
-        size.height - 28,
-        center + size.width * .7,
-        size.height - 64,
-      )
-      ..lineTo(center + size.width * .7, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _NavigationWavePainter oldDelegate) =>
-      progress != oldDelegate.progress ||
-      movingForward != oldDelegate.movingForward ||
-      color != oldDelegate.color;
 }

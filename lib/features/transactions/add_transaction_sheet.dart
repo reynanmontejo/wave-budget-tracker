@@ -74,6 +74,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Future<void> _save() async {
     if (!_validateQuickEntry()) return;
     final amount = Money.parseMajorUnits(_amountController.text)!;
+    if (!await _confirmNegativeWallet(amount)) return;
+    if (!mounted) return;
     final container = ProviderScope.containerOf(context);
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _saving = true);
@@ -147,11 +149,54 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   void _invalidateLedgerData(ProviderContainer container) {
     container.invalidate(totalsProvider);
     container.invalidate(accountBalancesProvider);
+    container.invalidate(allAccountBalancesProvider);
+    if (_accountId != null) {
+      container.invalidate(accountUsageProvider(_accountId!));
+      container.invalidate(accountActivityProvider(_accountId!));
+    }
+    if (_toAccountId != null) {
+      container.invalidate(accountUsageProvider(_toAccountId!));
+      container.invalidate(accountActivityProvider(_toAccountId!));
+    }
     container.invalidate(expenseReportProvider);
     container.invalidate(homeBudgetProgressProvider);
     container.invalidate(transactionEntriesProvider);
     container.invalidate(activityEntriesProvider);
     container.invalidate(dashboardMetricsProvider);
+  }
+
+  Future<bool> _confirmNegativeWallet(int amountMinor) async {
+    if (_mode == EntryMode.income || _accountId == null) return true;
+    final balances = await ref.read(accountBalancesProvider.future);
+    final source = balances
+        .where((item) => item.account.id == _accountId)
+        .firstOrNull;
+    if (source == null ||
+        source.account.typeName != 'E-wallet' ||
+        source.balanceMinor - amountMinor >= 0 ||
+        !mounted) {
+      return true;
+    }
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Wallet value will be negative'),
+            content: Text(
+              'This entry changes ${source.account.name} to ${Money(source.balanceMinor - amountMinor, currencyCode: source.account.currencyCode).format()}. You can still save it and reconcile the wallet later.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Review entry'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Save anyway'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   void _changeMode(EntryMode mode) {

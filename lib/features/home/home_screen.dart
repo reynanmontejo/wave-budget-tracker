@@ -8,6 +8,10 @@ import '../../core/theme/wave_page_route.dart';
 import '../../core/theme/wave_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../data/providers.dart';
+import '../accounts/account_actions.dart';
+import '../accounts/account_card.dart';
+import '../accounts/account_detail_screen.dart';
+import '../accounts/accounts_screen.dart';
 import '../budgets/budgets_screen.dart';
 import '../more/more_screen.dart';
 import '../planned/planned_screen.dart';
@@ -38,6 +42,8 @@ class HomeScreen extends ConsumerWidget {
             const _HomeHeader(),
             const SizedBox(height: 14),
             const _BalanceHero(),
+            const SizedBox(height: 12),
+            const _HomeAccounts(),
             const SizedBox(height: 12),
             const _PeriodSummary(),
             const _PriorityAlert(),
@@ -152,10 +158,9 @@ class _BalanceHero extends ConsumerWidget {
           ),
         ),
         data: (items) {
-          final total = items.fold<int>(
-            0,
-            (sum, item) => sum + item.balanceMinor,
-          );
+          final total = items
+              .where((item) => item.account.includeInNetWorth)
+              .fold<int>(0, (sum, item) => sum + item.balanceMinor);
           final formatted = visible ? Money(total).format() : 'hidden';
           return Semantics(
             container: true,
@@ -275,6 +280,166 @@ class _QuietWavePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _QuietWavePainter oldDelegate) => false;
+}
+
+class _HomeAccounts extends ConsumerWidget {
+  const _HomeAccounts();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accounts = ref.watch(accountBalancesProvider);
+    final visible = ref.watch(balancesVisibleProvider);
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'My accounts',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _openAccounts(context, ref),
+              child: const Text('See all'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 150 + ((textScale - 1).clamp(0, 1).toDouble() * 80),
+          child: accounts.when(
+            loading: () => ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: 2,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (_, _) => Container(
+                width: 220,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+            error: (_, _) => Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Expanded(child: Text('Accounts unavailable.')),
+                    TextButton(
+                      onPressed: () => ref.invalidate(accountBalancesProvider),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            data: (items) => ListView.separated(
+              key: const PageStorageKey('home-account-cards'),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(right: 4),
+              itemCount: items.length + 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                if (index == items.length) {
+                  return _AddAccountCard(
+                    onTap: () => openAccountForm(context, ref),
+                  );
+                }
+                final summary = items[index];
+                return WaveAccountCard(
+                  summary: summary,
+                  compact: true,
+                  balanceVisible: visible,
+                  actions: const [
+                    AccountCardAction.edit,
+                    AccountCardAction.archive,
+                  ],
+                  onTap: () =>
+                      _openAccountDetails(context, ref, summary.account.id),
+                  onAction: (action) async {
+                    if (action == AccountCardAction.edit) {
+                      await openAccountForm(context, ref, initial: summary);
+                    } else if (action == AccountCardAction.archive) {
+                      await archiveAccountAction(context, ref, summary);
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openAccounts(BuildContext context, WidgetRef ref) {
+    final motionEnabled =
+        ref.read(appearanceProvider).gentleMotion &&
+        !MediaQuery.disableAnimationsOf(context);
+    Navigator.push(
+      context,
+      WavePageRoute<void>(
+        motionEnabled: motionEnabled,
+        builder: (_) => const AccountsScreen(),
+      ),
+    );
+  }
+
+  void _openAccountDetails(
+    BuildContext context,
+    WidgetRef ref,
+    String accountId,
+  ) {
+    final motionEnabled =
+        ref.read(appearanceProvider).gentleMotion &&
+        !MediaQuery.disableAnimationsOf(context);
+    Navigator.push(
+      context,
+      WavePageRoute<void>(
+        motionEnabled: motionEnabled,
+        builder: (_) => AccountDetailScreen(accountId: accountId),
+      ),
+    );
+  }
+}
+
+class _AddAccountCard extends StatelessWidget {
+  const _AddAccountCard({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .5),
+    borderRadius: BorderRadius.circular(20),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        width: 148,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              child: const Icon(Icons.add),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Add account',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _PeriodSummary extends ConsumerWidget {

@@ -115,6 +115,55 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _walletProviderNameMeta =
+      const VerificationMeta('walletProviderName');
+  @override
+  late final GeneratedColumn<String> walletProviderName =
+      GeneratedColumn<String>(
+        'wallet_provider_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _walletProviderKeyMeta = const VerificationMeta(
+    'walletProviderKey',
+  );
+  @override
+  late final GeneratedColumn<String> walletProviderKey =
+      GeneratedColumn<String>(
+        'wallet_provider_key',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _walletIdentifierSuffixMeta =
+      const VerificationMeta('walletIdentifierSuffix');
+  @override
+  late final GeneratedColumn<String> walletIdentifierSuffix =
+      GeneratedColumn<String>(
+        'wallet_identifier_suffix',
+        aliasedName,
+        true,
+        additionalChecks: GeneratedColumn.checkTextLength(
+          minTextLength: 1,
+          maxTextLength: 4,
+        ),
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _walletLastReconciledAtMeta =
+      const VerificationMeta('walletLastReconciledAt');
+  @override
+  late final GeneratedColumn<DateTime> walletLastReconciledAt =
+      GeneratedColumn<DateTime>(
+        'wallet_last_reconciled_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _archivedAtMeta = const VerificationMeta(
     'archivedAt',
   );
@@ -161,6 +210,10 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     iconKey,
     colorValue,
     includeInNetWorth,
+    walletProviderName,
+    walletProviderKey,
+    walletIdentifierSuffix,
+    walletLastReconciledAt,
     archivedAt,
     createdAt,
     updatedAt,
@@ -246,6 +299,42 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         ),
       );
     }
+    if (data.containsKey('wallet_provider_name')) {
+      context.handle(
+        _walletProviderNameMeta,
+        walletProviderName.isAcceptableOrUnknown(
+          data['wallet_provider_name']!,
+          _walletProviderNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('wallet_provider_key')) {
+      context.handle(
+        _walletProviderKeyMeta,
+        walletProviderKey.isAcceptableOrUnknown(
+          data['wallet_provider_key']!,
+          _walletProviderKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('wallet_identifier_suffix')) {
+      context.handle(
+        _walletIdentifierSuffixMeta,
+        walletIdentifierSuffix.isAcceptableOrUnknown(
+          data['wallet_identifier_suffix']!,
+          _walletIdentifierSuffixMeta,
+        ),
+      );
+    }
+    if (data.containsKey('wallet_last_reconciled_at')) {
+      context.handle(
+        _walletLastReconciledAtMeta,
+        walletLastReconciledAt.isAcceptableOrUnknown(
+          data['wallet_last_reconciled_at']!,
+          _walletLastReconciledAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('archived_at')) {
       context.handle(
         _archivedAtMeta,
@@ -309,6 +398,22 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         DriftSqlType.bool,
         data['${effectivePrefix}include_in_net_worth'],
       )!,
+      walletProviderName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wallet_provider_name'],
+      ),
+      walletProviderKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wallet_provider_key'],
+      ),
+      walletIdentifierSuffix: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wallet_identifier_suffix'],
+      ),
+      walletLastReconciledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}wallet_last_reconciled_at'],
+      ),
       archivedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}archived_at'],
@@ -340,6 +445,10 @@ class Account extends DataClass implements Insertable<Account> {
   final String iconKey;
   final int colorValue;
   final bool includeInNetWorth;
+  final String? walletProviderName;
+  final String? walletProviderKey;
+  final String? walletIdentifierSuffix;
+  final DateTime? walletLastReconciledAt;
   final DateTime? archivedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -353,6 +462,10 @@ class Account extends DataClass implements Insertable<Account> {
     required this.iconKey,
     required this.colorValue,
     required this.includeInNetWorth,
+    this.walletProviderName,
+    this.walletProviderKey,
+    this.walletIdentifierSuffix,
+    this.walletLastReconciledAt,
     this.archivedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -369,6 +482,22 @@ class Account extends DataClass implements Insertable<Account> {
     map['icon_key'] = Variable<String>(iconKey);
     map['color_value'] = Variable<int>(colorValue);
     map['include_in_net_worth'] = Variable<bool>(includeInNetWorth);
+    if (!nullToAbsent || walletProviderName != null) {
+      map['wallet_provider_name'] = Variable<String>(walletProviderName);
+    }
+    if (!nullToAbsent || walletProviderKey != null) {
+      map['wallet_provider_key'] = Variable<String>(walletProviderKey);
+    }
+    if (!nullToAbsent || walletIdentifierSuffix != null) {
+      map['wallet_identifier_suffix'] = Variable<String>(
+        walletIdentifierSuffix,
+      );
+    }
+    if (!nullToAbsent || walletLastReconciledAt != null) {
+      map['wallet_last_reconciled_at'] = Variable<DateTime>(
+        walletLastReconciledAt,
+      );
+    }
     if (!nullToAbsent || archivedAt != null) {
       map['archived_at'] = Variable<DateTime>(archivedAt);
     }
@@ -388,6 +517,18 @@ class Account extends DataClass implements Insertable<Account> {
       iconKey: Value(iconKey),
       colorValue: Value(colorValue),
       includeInNetWorth: Value(includeInNetWorth),
+      walletProviderName: walletProviderName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(walletProviderName),
+      walletProviderKey: walletProviderKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(walletProviderKey),
+      walletIdentifierSuffix: walletIdentifierSuffix == null && nullToAbsent
+          ? const Value.absent()
+          : Value(walletIdentifierSuffix),
+      walletLastReconciledAt: walletLastReconciledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(walletLastReconciledAt),
       archivedAt: archivedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(archivedAt),
@@ -415,6 +556,18 @@ class Account extends DataClass implements Insertable<Account> {
       iconKey: serializer.fromJson<String>(json['iconKey']),
       colorValue: serializer.fromJson<int>(json['colorValue']),
       includeInNetWorth: serializer.fromJson<bool>(json['includeInNetWorth']),
+      walletProviderName: serializer.fromJson<String?>(
+        json['walletProviderName'],
+      ),
+      walletProviderKey: serializer.fromJson<String?>(
+        json['walletProviderKey'],
+      ),
+      walletIdentifierSuffix: serializer.fromJson<String?>(
+        json['walletIdentifierSuffix'],
+      ),
+      walletLastReconciledAt: serializer.fromJson<DateTime?>(
+        json['walletLastReconciledAt'],
+      ),
       archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -433,6 +586,14 @@ class Account extends DataClass implements Insertable<Account> {
       'iconKey': serializer.toJson<String>(iconKey),
       'colorValue': serializer.toJson<int>(colorValue),
       'includeInNetWorth': serializer.toJson<bool>(includeInNetWorth),
+      'walletProviderName': serializer.toJson<String?>(walletProviderName),
+      'walletProviderKey': serializer.toJson<String?>(walletProviderKey),
+      'walletIdentifierSuffix': serializer.toJson<String?>(
+        walletIdentifierSuffix,
+      ),
+      'walletLastReconciledAt': serializer.toJson<DateTime?>(
+        walletLastReconciledAt,
+      ),
       'archivedAt': serializer.toJson<DateTime?>(archivedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -449,6 +610,10 @@ class Account extends DataClass implements Insertable<Account> {
     String? iconKey,
     int? colorValue,
     bool? includeInNetWorth,
+    Value<String?> walletProviderName = const Value.absent(),
+    Value<String?> walletProviderKey = const Value.absent(),
+    Value<String?> walletIdentifierSuffix = const Value.absent(),
+    Value<DateTime?> walletLastReconciledAt = const Value.absent(),
     Value<DateTime?> archivedAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -462,6 +627,18 @@ class Account extends DataClass implements Insertable<Account> {
     iconKey: iconKey ?? this.iconKey,
     colorValue: colorValue ?? this.colorValue,
     includeInNetWorth: includeInNetWorth ?? this.includeInNetWorth,
+    walletProviderName: walletProviderName.present
+        ? walletProviderName.value
+        : this.walletProviderName,
+    walletProviderKey: walletProviderKey.present
+        ? walletProviderKey.value
+        : this.walletProviderKey,
+    walletIdentifierSuffix: walletIdentifierSuffix.present
+        ? walletIdentifierSuffix.value
+        : this.walletIdentifierSuffix,
+    walletLastReconciledAt: walletLastReconciledAt.present
+        ? walletLastReconciledAt.value
+        : this.walletLastReconciledAt,
     archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -487,6 +664,18 @@ class Account extends DataClass implements Insertable<Account> {
       includeInNetWorth: data.includeInNetWorth.present
           ? data.includeInNetWorth.value
           : this.includeInNetWorth,
+      walletProviderName: data.walletProviderName.present
+          ? data.walletProviderName.value
+          : this.walletProviderName,
+      walletProviderKey: data.walletProviderKey.present
+          ? data.walletProviderKey.value
+          : this.walletProviderKey,
+      walletIdentifierSuffix: data.walletIdentifierSuffix.present
+          ? data.walletIdentifierSuffix.value
+          : this.walletIdentifierSuffix,
+      walletLastReconciledAt: data.walletLastReconciledAt.present
+          ? data.walletLastReconciledAt.value
+          : this.walletLastReconciledAt,
       archivedAt: data.archivedAt.present
           ? data.archivedAt.value
           : this.archivedAt,
@@ -507,6 +696,10 @@ class Account extends DataClass implements Insertable<Account> {
           ..write('iconKey: $iconKey, ')
           ..write('colorValue: $colorValue, ')
           ..write('includeInNetWorth: $includeInNetWorth, ')
+          ..write('walletProviderName: $walletProviderName, ')
+          ..write('walletProviderKey: $walletProviderKey, ')
+          ..write('walletIdentifierSuffix: $walletIdentifierSuffix, ')
+          ..write('walletLastReconciledAt: $walletLastReconciledAt, ')
           ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -525,6 +718,10 @@ class Account extends DataClass implements Insertable<Account> {
     iconKey,
     colorValue,
     includeInNetWorth,
+    walletProviderName,
+    walletProviderKey,
+    walletIdentifierSuffix,
+    walletLastReconciledAt,
     archivedAt,
     createdAt,
     updatedAt,
@@ -542,6 +739,10 @@ class Account extends DataClass implements Insertable<Account> {
           other.iconKey == this.iconKey &&
           other.colorValue == this.colorValue &&
           other.includeInNetWorth == this.includeInNetWorth &&
+          other.walletProviderName == this.walletProviderName &&
+          other.walletProviderKey == this.walletProviderKey &&
+          other.walletIdentifierSuffix == this.walletIdentifierSuffix &&
+          other.walletLastReconciledAt == this.walletLastReconciledAt &&
           other.archivedAt == this.archivedAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -557,6 +758,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   final Value<String> iconKey;
   final Value<int> colorValue;
   final Value<bool> includeInNetWorth;
+  final Value<String?> walletProviderName;
+  final Value<String?> walletProviderKey;
+  final Value<String?> walletIdentifierSuffix;
+  final Value<DateTime?> walletLastReconciledAt;
   final Value<DateTime?> archivedAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -571,6 +776,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.iconKey = const Value.absent(),
     this.colorValue = const Value.absent(),
     this.includeInNetWorth = const Value.absent(),
+    this.walletProviderName = const Value.absent(),
+    this.walletProviderKey = const Value.absent(),
+    this.walletIdentifierSuffix = const Value.absent(),
+    this.walletLastReconciledAt = const Value.absent(),
     this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -586,6 +795,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.iconKey = const Value.absent(),
     this.colorValue = const Value.absent(),
     this.includeInNetWorth = const Value.absent(),
+    this.walletProviderName = const Value.absent(),
+    this.walletProviderKey = const Value.absent(),
+    this.walletIdentifierSuffix = const Value.absent(),
+    this.walletLastReconciledAt = const Value.absent(),
     this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -603,6 +816,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Expression<String>? iconKey,
     Expression<int>? colorValue,
     Expression<bool>? includeInNetWorth,
+    Expression<String>? walletProviderName,
+    Expression<String>? walletProviderKey,
+    Expression<String>? walletIdentifierSuffix,
+    Expression<DateTime>? walletLastReconciledAt,
     Expression<DateTime>? archivedAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -620,6 +837,13 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       if (iconKey != null) 'icon_key': iconKey,
       if (colorValue != null) 'color_value': colorValue,
       if (includeInNetWorth != null) 'include_in_net_worth': includeInNetWorth,
+      if (walletProviderName != null)
+        'wallet_provider_name': walletProviderName,
+      if (walletProviderKey != null) 'wallet_provider_key': walletProviderKey,
+      if (walletIdentifierSuffix != null)
+        'wallet_identifier_suffix': walletIdentifierSuffix,
+      if (walletLastReconciledAt != null)
+        'wallet_last_reconciled_at': walletLastReconciledAt,
       if (archivedAt != null) 'archived_at': archivedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -637,6 +861,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Value<String>? iconKey,
     Value<int>? colorValue,
     Value<bool>? includeInNetWorth,
+    Value<String?>? walletProviderName,
+    Value<String?>? walletProviderKey,
+    Value<String?>? walletIdentifierSuffix,
+    Value<DateTime?>? walletLastReconciledAt,
     Value<DateTime?>? archivedAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -652,6 +880,12 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       iconKey: iconKey ?? this.iconKey,
       colorValue: colorValue ?? this.colorValue,
       includeInNetWorth: includeInNetWorth ?? this.includeInNetWorth,
+      walletProviderName: walletProviderName ?? this.walletProviderName,
+      walletProviderKey: walletProviderKey ?? this.walletProviderKey,
+      walletIdentifierSuffix:
+          walletIdentifierSuffix ?? this.walletIdentifierSuffix,
+      walletLastReconciledAt:
+          walletLastReconciledAt ?? this.walletLastReconciledAt,
       archivedAt: archivedAt ?? this.archivedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -691,6 +925,22 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     if (includeInNetWorth.present) {
       map['include_in_net_worth'] = Variable<bool>(includeInNetWorth.value);
     }
+    if (walletProviderName.present) {
+      map['wallet_provider_name'] = Variable<String>(walletProviderName.value);
+    }
+    if (walletProviderKey.present) {
+      map['wallet_provider_key'] = Variable<String>(walletProviderKey.value);
+    }
+    if (walletIdentifierSuffix.present) {
+      map['wallet_identifier_suffix'] = Variable<String>(
+        walletIdentifierSuffix.value,
+      );
+    }
+    if (walletLastReconciledAt.present) {
+      map['wallet_last_reconciled_at'] = Variable<DateTime>(
+        walletLastReconciledAt.value,
+      );
+    }
     if (archivedAt.present) {
       map['archived_at'] = Variable<DateTime>(archivedAt.value);
     }
@@ -718,6 +968,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
           ..write('iconKey: $iconKey, ')
           ..write('colorValue: $colorValue, ')
           ..write('includeInNetWorth: $includeInNetWorth, ')
+          ..write('walletProviderName: $walletProviderName, ')
+          ..write('walletProviderKey: $walletProviderKey, ')
+          ..write('walletIdentifierSuffix: $walletIdentifierSuffix, ')
+          ..write('walletLastReconciledAt: $walletLastReconciledAt, ')
           ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -5622,6 +5876,439 @@ class SavingsContributionsCompanion
   }
 }
 
+class $AccountBalanceAdjustmentsTable extends AccountBalanceAdjustments
+    with TableInfo<$AccountBalanceAdjustmentsTable, AccountBalanceAdjustment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AccountBalanceAdjustmentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id)',
+    ),
+  );
+  static const VerificationMeta _differenceMinorMeta = const VerificationMeta(
+    'differenceMinor',
+  );
+  @override
+  late final GeneratedColumn<int> differenceMinor = GeneratedColumn<int>(
+    'difference_minor',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _observedBalanceMinorMeta =
+      const VerificationMeta('observedBalanceMinor');
+  @override
+  late final GeneratedColumn<int> observedBalanceMinor = GeneratedColumn<int>(
+    'observed_balance_minor',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    differenceMinor,
+    observedBalanceMinor,
+    note,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'account_balance_adjustments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AccountBalanceAdjustment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('difference_minor')) {
+      context.handle(
+        _differenceMinorMeta,
+        differenceMinor.isAcceptableOrUnknown(
+          data['difference_minor']!,
+          _differenceMinorMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_differenceMinorMeta);
+    }
+    if (data.containsKey('observed_balance_minor')) {
+      context.handle(
+        _observedBalanceMinorMeta,
+        observedBalanceMinor.isAcceptableOrUnknown(
+          data['observed_balance_minor']!,
+          _observedBalanceMinorMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_observedBalanceMinorMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AccountBalanceAdjustment map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AccountBalanceAdjustment(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      differenceMinor: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}difference_minor'],
+      )!,
+      observedBalanceMinor: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}observed_balance_minor'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AccountBalanceAdjustmentsTable createAlias(String alias) {
+    return $AccountBalanceAdjustmentsTable(attachedDatabase, alias);
+  }
+}
+
+class AccountBalanceAdjustment extends DataClass
+    implements Insertable<AccountBalanceAdjustment> {
+  final String id;
+  final String accountId;
+  final int differenceMinor;
+  final int observedBalanceMinor;
+  final String? note;
+  final DateTime createdAt;
+  const AccountBalanceAdjustment({
+    required this.id,
+    required this.accountId,
+    required this.differenceMinor,
+    required this.observedBalanceMinor,
+    this.note,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['account_id'] = Variable<String>(accountId);
+    map['difference_minor'] = Variable<int>(differenceMinor);
+    map['observed_balance_minor'] = Variable<int>(observedBalanceMinor);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  AccountBalanceAdjustmentsCompanion toCompanion(bool nullToAbsent) {
+    return AccountBalanceAdjustmentsCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      differenceMinor: Value(differenceMinor),
+      observedBalanceMinor: Value(observedBalanceMinor),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory AccountBalanceAdjustment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AccountBalanceAdjustment(
+      id: serializer.fromJson<String>(json['id']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      differenceMinor: serializer.fromJson<int>(json['differenceMinor']),
+      observedBalanceMinor: serializer.fromJson<int>(
+        json['observedBalanceMinor'],
+      ),
+      note: serializer.fromJson<String?>(json['note']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'accountId': serializer.toJson<String>(accountId),
+      'differenceMinor': serializer.toJson<int>(differenceMinor),
+      'observedBalanceMinor': serializer.toJson<int>(observedBalanceMinor),
+      'note': serializer.toJson<String?>(note),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  AccountBalanceAdjustment copyWith({
+    String? id,
+    String? accountId,
+    int? differenceMinor,
+    int? observedBalanceMinor,
+    Value<String?> note = const Value.absent(),
+    DateTime? createdAt,
+  }) => AccountBalanceAdjustment(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    differenceMinor: differenceMinor ?? this.differenceMinor,
+    observedBalanceMinor: observedBalanceMinor ?? this.observedBalanceMinor,
+    note: note.present ? note.value : this.note,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  AccountBalanceAdjustment copyWithCompanion(
+    AccountBalanceAdjustmentsCompanion data,
+  ) {
+    return AccountBalanceAdjustment(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      differenceMinor: data.differenceMinor.present
+          ? data.differenceMinor.value
+          : this.differenceMinor,
+      observedBalanceMinor: data.observedBalanceMinor.present
+          ? data.observedBalanceMinor.value
+          : this.observedBalanceMinor,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountBalanceAdjustment(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('differenceMinor: $differenceMinor, ')
+          ..write('observedBalanceMinor: $observedBalanceMinor, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    accountId,
+    differenceMinor,
+    observedBalanceMinor,
+    note,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AccountBalanceAdjustment &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.differenceMinor == this.differenceMinor &&
+          other.observedBalanceMinor == this.observedBalanceMinor &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt);
+}
+
+class AccountBalanceAdjustmentsCompanion
+    extends UpdateCompanion<AccountBalanceAdjustment> {
+  final Value<String> id;
+  final Value<String> accountId;
+  final Value<int> differenceMinor;
+  final Value<int> observedBalanceMinor;
+  final Value<String?> note;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const AccountBalanceAdjustmentsCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.differenceMinor = const Value.absent(),
+    this.observedBalanceMinor = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AccountBalanceAdjustmentsCompanion.insert({
+    required String id,
+    required String accountId,
+    required int differenceMinor,
+    required int observedBalanceMinor,
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       accountId = Value(accountId),
+       differenceMinor = Value(differenceMinor),
+       observedBalanceMinor = Value(observedBalanceMinor);
+  static Insertable<AccountBalanceAdjustment> custom({
+    Expression<String>? id,
+    Expression<String>? accountId,
+    Expression<int>? differenceMinor,
+    Expression<int>? observedBalanceMinor,
+    Expression<String>? note,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (differenceMinor != null) 'difference_minor': differenceMinor,
+      if (observedBalanceMinor != null)
+        'observed_balance_minor': observedBalanceMinor,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AccountBalanceAdjustmentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? accountId,
+    Value<int>? differenceMinor,
+    Value<int>? observedBalanceMinor,
+    Value<String?>? note,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return AccountBalanceAdjustmentsCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      differenceMinor: differenceMinor ?? this.differenceMinor,
+      observedBalanceMinor: observedBalanceMinor ?? this.observedBalanceMinor,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (differenceMinor.present) {
+      map['difference_minor'] = Variable<int>(differenceMinor.value);
+    }
+    if (observedBalanceMinor.present) {
+      map['observed_balance_minor'] = Variable<int>(observedBalanceMinor.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountBalanceAdjustmentsCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('differenceMinor: $differenceMinor, ')
+          ..write('observedBalanceMinor: $observedBalanceMinor, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5639,6 +6326,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SavingsGoalsTable savingsGoals = $SavingsGoalsTable(this);
   late final $SavingsContributionsTable savingsContributions =
       $SavingsContributionsTable(this);
+  late final $AccountBalanceAdjustmentsTable accountBalanceAdjustments =
+      $AccountBalanceAdjustmentsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5654,6 +6343,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     scheduledOccurrences,
     savingsGoals,
     savingsContributions,
+    accountBalanceAdjustments,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -5685,6 +6375,10 @@ typedef $$AccountsTableCreateCompanionBuilder =
       Value<String> iconKey,
       Value<int> colorValue,
       Value<bool> includeInNetWorth,
+      Value<String?> walletProviderName,
+      Value<String?> walletProviderKey,
+      Value<String?> walletIdentifierSuffix,
+      Value<DateTime?> walletLastReconciledAt,
       Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -5701,6 +6395,10 @@ typedef $$AccountsTableUpdateCompanionBuilder =
       Value<String> iconKey,
       Value<int> colorValue,
       Value<bool> includeInNetWorth,
+      Value<String?> walletProviderName,
+      Value<String?> walletProviderKey,
+      Value<String?> walletIdentifierSuffix,
+      Value<DateTime?> walletLastReconciledAt,
       Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -5810,6 +6508,31 @@ final class $$AccountsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $AccountBalanceAdjustmentsTable,
+    List<AccountBalanceAdjustment>
+  >
+  _accountBalanceAdjustmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.accountBalanceAdjustments,
+        aliasName: 'accounts__id__account_balance_adjustments__account_id',
+      );
+
+  $$AccountBalanceAdjustmentsTableProcessedTableManager
+  get accountBalanceAdjustmentsRefs {
+    final manager = $$AccountBalanceAdjustmentsTableTableManager(
+      $_db,
+      $_db.accountBalanceAdjustments,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _accountBalanceAdjustmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$AccountsTableFilterComposer
@@ -5863,6 +6586,26 @@ class $$AccountsTableFilterComposer
 
   ColumnFilters<bool> get includeInNetWorth => $composableBuilder(
     column: $table.includeInNetWorth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get walletProviderName => $composableBuilder(
+    column: $table.walletProviderName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get walletProviderKey => $composableBuilder(
+    column: $table.walletProviderKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get walletIdentifierSuffix => $composableBuilder(
+    column: $table.walletIdentifierSuffix,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get walletLastReconciledAt => $composableBuilder(
+    column: $table.walletLastReconciledAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6006,6 +6749,33 @@ class $$AccountsTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> accountBalanceAdjustmentsRefs(
+    Expression<bool> Function($$AccountBalanceAdjustmentsTableFilterComposer f)
+    f,
+  ) {
+    final $$AccountBalanceAdjustmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.accountBalanceAdjustments,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AccountBalanceAdjustmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.accountBalanceAdjustments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AccountsTableOrderingComposer
@@ -6059,6 +6829,26 @@ class $$AccountsTableOrderingComposer
 
   ColumnOrderings<bool> get includeInNetWorth => $composableBuilder(
     column: $table.includeInNetWorth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get walletProviderName => $composableBuilder(
+    column: $table.walletProviderName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get walletProviderKey => $composableBuilder(
+    column: $table.walletProviderKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get walletIdentifierSuffix => $composableBuilder(
+    column: $table.walletIdentifierSuffix,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get walletLastReconciledAt => $composableBuilder(
+    column: $table.walletLastReconciledAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -6121,6 +6911,26 @@ class $$AccountsTableAnnotationComposer
 
   GeneratedColumn<bool> get includeInNetWorth => $composableBuilder(
     column: $table.includeInNetWorth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get walletProviderName => $composableBuilder(
+    column: $table.walletProviderName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get walletProviderKey => $composableBuilder(
+    column: $table.walletProviderKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get walletIdentifierSuffix => $composableBuilder(
+    column: $table.walletIdentifierSuffix,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get walletLastReconciledAt => $composableBuilder(
+    column: $table.walletLastReconciledAt,
     builder: (column) => column,
   );
 
@@ -6261,6 +7071,33 @@ class $$AccountsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> accountBalanceAdjustmentsRefs<T extends Object>(
+    Expression<T> Function($$AccountBalanceAdjustmentsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$AccountBalanceAdjustmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.accountBalanceAdjustments,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AccountBalanceAdjustmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.accountBalanceAdjustments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AccountsTableTableManager
@@ -6282,6 +7119,7 @@ class $$AccountsTableTableManager
             bool incomingTransfers,
             bool scheduledTransactionsRefs,
             bool savingsGoalsRefs,
+            bool accountBalanceAdjustmentsRefs,
           })
         > {
   $$AccountsTableTableManager(_$AppDatabase db, $AccountsTable table)
@@ -6306,6 +7144,10 @@ class $$AccountsTableTableManager
                 Value<String> iconKey = const Value.absent(),
                 Value<int> colorValue = const Value.absent(),
                 Value<bool> includeInNetWorth = const Value.absent(),
+                Value<String?> walletProviderName = const Value.absent(),
+                Value<String?> walletProviderKey = const Value.absent(),
+                Value<String?> walletIdentifierSuffix = const Value.absent(),
+                Value<DateTime?> walletLastReconciledAt = const Value.absent(),
                 Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -6320,6 +7162,10 @@ class $$AccountsTableTableManager
                 iconKey: iconKey,
                 colorValue: colorValue,
                 includeInNetWorth: includeInNetWorth,
+                walletProviderName: walletProviderName,
+                walletProviderKey: walletProviderKey,
+                walletIdentifierSuffix: walletIdentifierSuffix,
+                walletLastReconciledAt: walletLastReconciledAt,
                 archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -6336,6 +7182,10 @@ class $$AccountsTableTableManager
                 Value<String> iconKey = const Value.absent(),
                 Value<int> colorValue = const Value.absent(),
                 Value<bool> includeInNetWorth = const Value.absent(),
+                Value<String?> walletProviderName = const Value.absent(),
+                Value<String?> walletProviderKey = const Value.absent(),
+                Value<String?> walletIdentifierSuffix = const Value.absent(),
+                Value<DateTime?> walletLastReconciledAt = const Value.absent(),
                 Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -6350,6 +7200,10 @@ class $$AccountsTableTableManager
                 iconKey: iconKey,
                 colorValue: colorValue,
                 includeInNetWorth: includeInNetWorth,
+                walletProviderName: walletProviderName,
+                walletProviderKey: walletProviderKey,
+                walletIdentifierSuffix: walletIdentifierSuffix,
+                walletLastReconciledAt: walletLastReconciledAt,
                 archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -6370,6 +7224,7 @@ class $$AccountsTableTableManager
                 incomingTransfers = false,
                 scheduledTransactionsRefs = false,
                 savingsGoalsRefs = false,
+                accountBalanceAdjustmentsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -6379,6 +7234,8 @@ class $$AccountsTableTableManager
                     if (incomingTransfers) db.transfers,
                     if (scheduledTransactionsRefs) db.scheduledTransactions,
                     if (savingsGoalsRefs) db.savingsGoals,
+                    if (accountBalanceAdjustmentsRefs)
+                      db.accountBalanceAdjustments,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -6488,6 +7345,27 @@ class $$AccountsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (accountBalanceAdjustmentsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          AccountBalanceAdjustment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._accountBalanceAdjustmentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).accountBalanceAdjustmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -6514,6 +7392,7 @@ typedef $$AccountsTableProcessedTableManager =
         bool incomingTransfers,
         bool scheduledTransactionsRefs,
         bool savingsGoalsRefs,
+        bool accountBalanceAdjustmentsRefs,
       })
     >;
 typedef $$CategoriesTableCreateCompanionBuilder =
@@ -10858,6 +11737,371 @@ typedef $$SavingsContributionsTableProcessedTableManager =
       SavingsContribution,
       PrefetchHooks Function({bool goalId})
     >;
+typedef $$AccountBalanceAdjustmentsTableCreateCompanionBuilder =
+    AccountBalanceAdjustmentsCompanion Function({
+      required String id,
+      required String accountId,
+      required int differenceMinor,
+      required int observedBalanceMinor,
+      Value<String?> note,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$AccountBalanceAdjustmentsTableUpdateCompanionBuilder =
+    AccountBalanceAdjustmentsCompanion Function({
+      Value<String> id,
+      Value<String> accountId,
+      Value<int> differenceMinor,
+      Value<int> observedBalanceMinor,
+      Value<String?> note,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$AccountBalanceAdjustmentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AccountBalanceAdjustmentsTable,
+          AccountBalanceAdjustment
+        > {
+  $$AccountBalanceAdjustmentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('account_balance_adjustments__account_id__accounts__id');
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AccountBalanceAdjustmentsTableFilterComposer
+    extends Composer<_$AppDatabase, $AccountBalanceAdjustmentsTable> {
+  $$AccountBalanceAdjustmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get differenceMinor => $composableBuilder(
+    column: $table.differenceMinor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get observedBalanceMinor => $composableBuilder(
+    column: $table.observedBalanceMinor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountBalanceAdjustmentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AccountBalanceAdjustmentsTable> {
+  $$AccountBalanceAdjustmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get differenceMinor => $composableBuilder(
+    column: $table.differenceMinor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get observedBalanceMinor => $composableBuilder(
+    column: $table.observedBalanceMinor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountBalanceAdjustmentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AccountBalanceAdjustmentsTable> {
+  $$AccountBalanceAdjustmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get differenceMinor => $composableBuilder(
+    column: $table.differenceMinor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get observedBalanceMinor => $composableBuilder(
+    column: $table.observedBalanceMinor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountBalanceAdjustmentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AccountBalanceAdjustmentsTable,
+          AccountBalanceAdjustment,
+          $$AccountBalanceAdjustmentsTableFilterComposer,
+          $$AccountBalanceAdjustmentsTableOrderingComposer,
+          $$AccountBalanceAdjustmentsTableAnnotationComposer,
+          $$AccountBalanceAdjustmentsTableCreateCompanionBuilder,
+          $$AccountBalanceAdjustmentsTableUpdateCompanionBuilder,
+          (
+            AccountBalanceAdjustment,
+            $$AccountBalanceAdjustmentsTableReferences,
+          ),
+          AccountBalanceAdjustment,
+          PrefetchHooks Function({bool accountId})
+        > {
+  $$AccountBalanceAdjustmentsTableTableManager(
+    _$AppDatabase db,
+    $AccountBalanceAdjustmentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AccountBalanceAdjustmentsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AccountBalanceAdjustmentsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AccountBalanceAdjustmentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<int> differenceMinor = const Value.absent(),
+                Value<int> observedBalanceMinor = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AccountBalanceAdjustmentsCompanion(
+                id: id,
+                accountId: accountId,
+                differenceMinor: differenceMinor,
+                observedBalanceMinor: observedBalanceMinor,
+                note: note,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String accountId,
+                required int differenceMinor,
+                required int observedBalanceMinor,
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AccountBalanceAdjustmentsCompanion.insert(
+                id: id,
+                accountId: accountId,
+                differenceMinor: differenceMinor,
+                observedBalanceMinor: observedBalanceMinor,
+                note: note,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AccountBalanceAdjustmentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.accountId,
+                                referencedTable:
+                                    $$AccountBalanceAdjustmentsTableReferences
+                                        ._accountIdTable(db),
+                                referencedColumn:
+                                    $$AccountBalanceAdjustmentsTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AccountBalanceAdjustmentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AccountBalanceAdjustmentsTable,
+      AccountBalanceAdjustment,
+      $$AccountBalanceAdjustmentsTableFilterComposer,
+      $$AccountBalanceAdjustmentsTableOrderingComposer,
+      $$AccountBalanceAdjustmentsTableAnnotationComposer,
+      $$AccountBalanceAdjustmentsTableCreateCompanionBuilder,
+      $$AccountBalanceAdjustmentsTableUpdateCompanionBuilder,
+      (AccountBalanceAdjustment, $$AccountBalanceAdjustmentsTableReferences),
+      AccountBalanceAdjustment,
+      PrefetchHooks Function({bool accountId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10882,4 +12126,9 @@ class $AppDatabaseManager {
       $$SavingsGoalsTableTableManager(_db, _db.savingsGoals);
   $$SavingsContributionsTableTableManager get savingsContributions =>
       $$SavingsContributionsTableTableManager(_db, _db.savingsContributions);
+  $$AccountBalanceAdjustmentsTableTableManager get accountBalanceAdjustments =>
+      $$AccountBalanceAdjustmentsTableTableManager(
+        _db,
+        _db.accountBalanceAdjustments,
+      );
 }

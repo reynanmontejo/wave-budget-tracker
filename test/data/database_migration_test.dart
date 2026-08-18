@@ -96,9 +96,11 @@ CREATE TABLE budgets (
       final entry = await database
           .select(database.ledgerTransactions)
           .getSingle();
-      expect(database.schemaVersion, 4);
+      expect(database.schemaVersion, 5);
       expect(account.id, 'legacy-account');
       expect(account.openingBalanceMinor, 50000);
+      expect(account.walletProviderName, isNull);
+      expect(account.walletLastReconciledAt, isNull);
       expect(entry.id, 'legacy-entry');
       expect(entry.amountMinor, 1250);
       expect(await database.select(database.appPreferences).get(), isEmpty);
@@ -107,6 +109,10 @@ CREATE TABLE budgets (
         isEmpty,
       );
       expect(await database.select(database.savingsGoals).get(), isEmpty);
+      expect(
+        await database.select(database.accountBalanceAdjustments).get(),
+        isEmpty,
+      );
       final foreignKeys = await database
           .customSelect('PRAGMA foreign_keys')
           .getSingle();

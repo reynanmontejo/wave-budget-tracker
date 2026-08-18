@@ -113,8 +113,11 @@ final cashFlowInsightProvider = FutureProvider<CashFlowInsight>((ref) async {
     ref.watch(scheduleRepositoryProvider).forecast(start, end),
     ref.watch(savingsRepositoryProvider).watchGoals().first,
   ]);
+  final balances = (results[0] as List<AccountBalanceSummary>)
+      .where((item) => item.account.includeInNetWorth)
+      .toList();
   return CashFlowInsight.calculate(
-    balances: results[0] as List<AccountBalanceSummary>,
+    balances: balances,
     actual: results[1] as PeriodTotals,
     forecast: results[2] as ScheduleForecast,
     goals: results[3] as List<SavingsGoalProgress>,
@@ -264,6 +267,26 @@ final accountBalancesProvider = FutureProvider<List<AccountBalanceSummary>>((
   await ref.watch(seedProvider.future);
   return ref.watch(databaseProvider).accountBalances();
 });
+
+final allAccountBalancesProvider = FutureProvider<List<AccountBalanceSummary>>((
+  ref,
+) async {
+  await ref.watch(seedProvider.future);
+  return ref.watch(databaseProvider).accountBalances(includeArchived: true);
+});
+
+final accountUsageProvider = FutureProvider.family<AccountUsageSummary, String>(
+  (ref, accountId) async {
+    await ref.watch(seedProvider.future);
+    return ref.watch(managementRepositoryProvider).accountUsage(accountId);
+  },
+);
+
+final accountActivityProvider =
+    StreamProvider.family<List<ActivityEntry>, String>((ref, accountId) async* {
+      await ref.watch(seedProvider.future);
+      yield* ref.watch(databaseProvider).watchAccountActivityEntries(accountId);
+    });
 
 final transactionEntriesProvider = StreamProvider<List<TransactionEntry>>((
   ref,

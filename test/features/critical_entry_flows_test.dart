@@ -10,6 +10,7 @@ import 'package:wave/data/database/app_database.dart';
 import 'package:wave/data/database/seed_data.dart';
 import 'package:wave/data/budget_repository.dart';
 import 'package:wave/data/ledger_repository.dart';
+import 'package:wave/data/management_repository.dart';
 import 'package:wave/data/providers.dart';
 import 'package:wave/data/schedule_repository.dart';
 import 'package:wave/features/accounts/accounts_screen.dart';
@@ -112,12 +113,209 @@ void main() {
     expect(gcash.openingBalanceMinor, 125050);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('GCash'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('GCash'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('Home presents compact account cards and account entry points', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app(const HomeScreen()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('My accounts'), findsOneWidget);
+    expect(find.text('See all'), findsOneWidget);
+    expect(find.text('Cash'), findsOneWidget);
+    expect(find.text('Bank'), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await disposeApp(tester);
+  });
+
+  testWidgets('Home e-wallet card fits a narrow screen with large text', (
+    tester,
+  ) async {
+    await ManagementRepository(database).createAccount(
+      name: 'Daily wallet with a long name',
+      typeName: 'E-wallet',
+      openingBalanceMinor: 150000,
+      walletProviderName: 'GCash',
+      walletProviderKey: 'gcash',
+      walletIdentifierSuffix: '42',
+    );
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [databaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: WaveTheme.light,
+          home: const MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: HomeScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const PageStorageKey('light-home')),
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const PageStorageKey('home-account-cards')),
+      const Offset(-500, 0),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('GCash'), findsOneWidget);
+    final layoutError = tester.takeException();
+    expect(
+      layoutError,
+      isNull,
+      reason: layoutError is FlutterError ? layoutError.toStringDeep() : null,
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('creates and reconciles a manual e-wallet', (tester) async {
+    await tester.pumpWidget(app(const AccountsScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('E-wallets ('));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add e-wallet'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Wallet nickname'),
+      'Daily wallet',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Current wallet value'),
+      '1500.00',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Last four digits (optional)'),
+      '42',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+    await tester.pumpAndSettle();
+    expect(find.text('Manual • no provider connection'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm and add'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Daily wallet'), findsOneWidget);
+    expect(find.textContaining('GCash'), findsWidgets);
+    await tester.tap(find.text('Daily wallet'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Manual'), findsWidgets);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reconcile'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Value shown in wallet'),
+      '1600.00',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Review adjustment'));
+    await tester.pumpAndSettle();
+    expect(find.text('Excluded from income and expenses'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm update'));
+    await tester.pumpAndSettle();
+
+    final wallet = await (database.select(
+      database.accounts,
+    )..where((row) => row.name.equals('Daily wallet'))).getSingle();
+    final balances = await database.accountBalances();
+    expect(
+      balances.singleWhere((item) => item.account.id == wallet.id).balanceMinor,
+      160000,
+    );
+    expect(
+      await database.select(database.accountBalanceAdjustments).get(),
+      hasLength(1),
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('reads account details and confirms account updates', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app(const AccountsScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cash'));
+    await tester.pumpAndSettle();
+    expect(find.text('OPENING BALANCE'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Account name'),
+      'Pocket Cash',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Confirm account changes'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    final account = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals('account-cash'))).getSingle();
+    expect(account.name, 'Pocket Cash');
+    expect(find.text('Pocket Cash'), findsWidgets);
+    await disposeApp(tester);
+  });
+
+  testWidgets('archives and restores an account with confirmation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app(const AccountsScreen()));
+    await tester.pumpAndSettle();
+
+    final actions = find.byTooltip('Account actions');
+    await tester.ensureVisible(actions.at(1));
+    await tester.tap(actions.at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Archive').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Archive Bank?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Archive'));
+    await tester.pumpAndSettle();
+
+    var bank = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals('account-bank'))).getSingle();
+    expect(bank.archivedAt, isNotNull);
+
+    await tester.tap(find.textContaining('Archived ('));
+    await tester.pumpAndSettle();
+    final archivedActions = find.byTooltip('Account actions');
+    await tester.tap(archivedActions.first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Restore').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Restore'));
+    await tester.pumpAndSettle();
+
+    bank = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals('account-bank'))).getSingle();
+    expect(bank.archivedAt, isNull);
+    await disposeApp(tester);
   });
 
   testWidgets(
@@ -384,9 +582,17 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.scrollUntilVisible(find.text('Recent activity'), 180);
-
     expect(find.text('TOTAL BALANCE'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final verticalScrollable = find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable && widget.axisDirection == AxisDirection.down,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Recent activity'),
+      180,
+      scrollable: verticalScrollable.first,
+    );
     expect(find.text('Recent activity'), findsOneWidget);
     final layoutError = tester.takeException();
     expect(
@@ -426,6 +632,8 @@ void main() {
 
     expect(find.text('Planned expense overdue'), findsOneWidget);
     expect(find.text('Budget exceeded'), findsNothing);
+    await tester.ensureVisible(find.text('Planned expense overdue'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Planned expense overdue'));
     await tester.pumpAndSettle();
     expect(find.text('Upcoming'), findsOneWidget);
